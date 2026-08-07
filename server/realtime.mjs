@@ -5,7 +5,8 @@ import path from "node:path";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocketServer } from "ws";
 
-process.loadEnvFile?.(path.join(process.cwd(), ".env.local"));
+const environmentPath = path.join(process.cwd(), ".env.local");
+if (fs.existsSync(environmentPath)) process.loadEnvFile?.(environmentPath);
 
 const port = Number(process.env.HERMES_WS_PORT ?? 8787);
 const databasePath = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd(), "data", "agent-os.db");

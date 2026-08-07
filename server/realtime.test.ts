@@ -21,11 +21,16 @@ afterEach(async () => {
 
 function waitForOutput(child: ChildProcess, text: string) {
   return new Promise<void>((resolve, reject) => {
+    let stderr = "";
     const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${text}`)), 5000);
+    child.stderr?.on("data", (data) => { stderr += String(data); });
     child.stdout?.on("data", (data) => {
       if (String(data).includes(text)) { clearTimeout(timeout); resolve(); }
     });
-    child.once("exit", (code) => { clearTimeout(timeout); reject(new Error(`Realtime server exited with ${code}`)); });
+    child.once("exit", (code) => {
+      clearTimeout(timeout);
+      reject(new Error(`Realtime server exited with ${code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`));
+    });
   });
 }
 
