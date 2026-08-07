@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { apiRequest, canWriteApi } from "@/lib/api-client";
+import { apiRequest, canWriteApi, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { subscribeRealtimeEvents } from "@/lib/realtime";
+import type { ResourceMetadata, ResourceState } from "@/lib/resource-state";
 
 export type OperationalModuleState = {
   version: number;
@@ -39,12 +40,8 @@ const PROJECT_EVENT = "agent-os-project-change";
 const PROJECT_KEY = "agent-os-project";
 
 export const initialOperationalModuleState: OperationalModuleState = {
-  version: 1,
-  notifications: [
-    { id: "notice-1", title: "Original modules completed", detail: "Task 5 validation passed across all twelve routes.", time: "Just now", severity: "success", read: false },
-    { id: "notice-2", title: "SMTP provider degraded", detail: "Delivery latency crossed the local warning threshold.", time: "18 min", severity: "warning", read: false },
-    { id: "notice-3", title: "Memory bank indexed", detail: "Decision and tracker indexes are synchronized.", time: "42 min", severity: "info", read: true },
-  ],
+  version: 3,
+  notifications: [],
   preferences: {
     desktopNotifications: true,
     digestEmail: false,
@@ -56,15 +53,13 @@ export const initialOperationalModuleState: OperationalModuleState = {
     cadence: "daily",
     deliveryTime: "18:00",
     modules: ["Agents", "Tokens", "GitHub", "Cron"],
-    history: [
-      { id: "digest-1", title: "Daily project digest", createdAt: "Today, 09:00", status: "ready" },
-      { id: "digest-2", title: "Weekly operations summary", createdAt: "Mon, 18:00", status: "scheduled" },
-    ],
+    history: [],
   },
   environment: "Local",
 };
 
 const initialStateJson = JSON.stringify(initialOperationalModuleState);
+const apiMetadata: ResourceMetadata = { source: "api", lastSucceededAt: null, retryable: true };
 
 function subscribe(eventName: string, callback: () => void) {
   window.addEventListener(eventName, callback);
@@ -82,7 +77,8 @@ export function operationalStorageKey(projectId: string) {
 function parseState(value: string | null): OperationalModuleState {
   if (!value) return structuredClone(initialOperationalModuleState);
   try {
-    return { ...structuredClone(initialOperationalModuleState), ...JSON.parse(value) } as OperationalModuleState;
+    const state = JSON.parse(value) as OperationalModuleState;
+    return state.version === initialOperationalModuleState.version ? state : structuredClone(initialOperationalModuleState);
   } catch {
     return structuredClone(initialOperationalModuleState);
   }
@@ -94,6 +90,12 @@ function writeState(projectId: string, state: OperationalModuleState) {
 }
 
 export function useOperationalModuleStore() {
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hydrationResult, setHydrationResult] = useState<{ projectId: string; state: ResourceState<OperationalModuleState> }>({
+    projectId: "",
+    state: { status: "loading", metadata: apiMetadata },
+  });
+  const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
     () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
@@ -105,20 +107,47 @@ export function useOperationalModuleStore() {
     () => initialStateJson,
   );
   const state = parseState(stateJson);
+  const hydrationState = hydrationResult.projectId === projectId
+    ? hydrationResult.state
+    : { status: "loading" as const, metadata: apiMetadata };
 
   const update = useCallback((mutate: (current: OperationalModuleState) => OperationalModuleState) => {
     const key = operationalStorageKey(projectId);
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
     writeState(projectId, next);
-    if (canWriteApi()) void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "operational", state: next }) }).catch(() => undefined);
+    if (canWriteApi()) {
+      void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "operational", state: next }) })
+        .then(() => setPersistenceError(null))
+        .catch((error: unknown) => setPersistenceError(normalizeApiError(error, "/api/state")));
+    }
   }, [projectId]);
 
   useEffect(() => {
     void apiRequest<{ operational: OperationalModuleState }>(`/api/state?projectId=${projectId}`)
-      .then((result) => writeState(projectId, result.operational))
-      .catch(() => undefined);
-  }, [projectId]);
+      .then((result) => {
+        writeState(projectId, result.operational);
+        setHydrationResult({
+          projectId,
+          state: {
+            status: "ready-populated",
+            data: result.operational,
+            metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
+          },
+        });
+      })
+      .catch((error: unknown) => {
+        const failure = normalizeApiError(error, "/api/state");
+        setHydrationResult({
+          projectId,
+          state: {
+            status: "error",
+            error: { code: failure.code, message: failure.message },
+            metadata: { ...apiMetadata, retryable: failure.retryable },
+          },
+        });
+      });
+  }, [projectId, refreshVersion]);
 
   useEffect(() => {
     return subscribeRealtimeEvents((event) => {
@@ -130,5 +159,7 @@ export function useOperationalModuleStore() {
     });
   }, [projectId, update]);
 
-  return { projectId, state, update };
+  const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
+
+  return { hydrationState, persistenceError, projectId, retryHydration, state, update };
 }

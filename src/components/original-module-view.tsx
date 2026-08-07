@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { Children, FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 
+import { ApiNotConnectedState, ResourceStateGate } from "@/components/api-state";
 import { EmptyState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import { ModuleCard } from "@/components/module-card";
 import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useUndo, type UndoHandler } from "@/components/undo-provider";
 import { VoiceCore } from "@/components/voice-core";
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import type { ModuleDefinition } from "@/lib/modules";
+import type { ProviderStatus } from "@/lib/resource-state";
 import {
   speakText,
   startVoiceCapture,
@@ -56,26 +58,28 @@ export function OriginalModuleView({ module }: { module: ModuleDefinition }) {
   const store = useOriginalModuleStore();
   const runUndoable = useUndo();
 
-  if (module.slug === "dashboard") return <Dashboard state={store.state} />;
+  if (module.slug === "dashboard") return (
+    <ResourceStateGate state={store.hydrationState} persistenceError={store.persistenceError} onRetry={store.retryHydration}>
+      <Dashboard state={store.state} />
+    </ResourceStateGate>
+  );
 
   return (
     <div className="module-view">
       <ModuleHeading module={module} live={module.slug === "agent-status"} />
-      {module.slug === "mail" ? <MailModule store={store} runUndoable={runUndoable} /> : null}
-      {module.slug === "cron" ? <CronModule store={store} runUndoable={runUndoable} /> : null}
-      {module.slug === "plans" ? <PlansModule store={store} /> : null}
-      {module.slug === "browser-preview" ? (
-        <PreviewModule store={store} />
-      ) : null}
-      {module.slug === "agents" ? <AgentsModule store={store} /> : null}
-      {module.slug === "agent-status" ? (
-        <AgentStatusModule state={store.state} />
-      ) : null}
-      {module.slug === "tokens" ? <TokensModule state={store.state} /> : null}
-      {module.slug === "api-status" ? <ApiStatusModule store={store} /> : null}
-      {module.slug === "github" ? <GithubModule store={store} runUndoable={runUndoable} /> : null}
-      {module.slug === "chat" ? <ChatModule store={store} /> : null}
-      {module.slug === "vault" ? <VaultModule /> : null}
+      <ResourceStateGate state={store.hydrationState} persistenceError={store.persistenceError} onRetry={store.retryHydration}>
+        {module.slug === "mail" ? <MailModule store={store} runUndoable={runUndoable} /> : null}
+        {module.slug === "cron" ? <CronModule store={store} runUndoable={runUndoable} /> : null}
+        {module.slug === "plans" ? <PlansModule store={store} /> : null}
+        {module.slug === "browser-preview" ? <PreviewModule store={store} /> : null}
+        {module.slug === "agents" ? <AgentsModule store={store} /> : null}
+        {module.slug === "agent-status" ? <AgentStatusModule state={store.state} /> : null}
+        {module.slug === "tokens" ? <TokensModule store={store} /> : null}
+        {module.slug === "api-status" ? <ApiStatusModule store={store} /> : null}
+        {module.slug === "github" ? <GithubModule store={store} runUndoable={runUndoable} /> : null}
+        {module.slug === "chat" ? <ChatModule store={store} /> : null}
+        {module.slug === "vault" ? <VaultModule /> : null}
+      </ResourceStateGate>
     </div>
   );
 }
@@ -247,6 +251,9 @@ function Dashboard({ state }: { state: OriginalModuleState }) {
 function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHandler }) {
   const [recipient, setRecipient] = useState("");
   const [subject, setSubject] = useState("");
+  const [requestError, setRequestError] = useState<ApiError | null>(null);
+  const smtp = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "smtp");
+  const smtpUnavailable = smtp && ["disconnected", "error", "unconfigured", "unreachable"].includes(smtp.status);
   const deliveryRate = (
     (store.state.mail.sent /
       Math.max(1, store.state.mail.sent + store.state.mail.failed)) *
@@ -254,15 +261,17 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
   ).toFixed(1);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!recipient.trim() || !subject.trim()) return;
+    if (!recipient.trim() || !subject.trim() || smtpUnavailable) return;
     const to = recipient.trim();
     const mailSubject = subject.trim();
     let delivered = false;
     try {
       await apiRequest("/api/providers?projectId=" + store.projectId, { method: "POST", body: JSON.stringify({ action: "mail", to, subject: mailSubject }) });
       delivered = true;
-    } catch {
+      setRequestError(null);
+    } catch (error) {
       delivered = false;
+      setRequestError(normalizeApiError(error, "/api/providers"));
     }
     store.update((current) => ({
       ...current,
@@ -282,8 +291,10 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
         ],
       },
     }));
-    setRecipient("");
-    setSubject("");
+    if (delivered) {
+      setRecipient("");
+      setSubject("");
+    }
   };
   return (
     <ModuleGrid
@@ -324,6 +335,8 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
         </DataList>
       </ModuleCard>
       <ModuleCard title="Compose" icon="plus" eyebrow="SMTP provider">
+        {requestError ? <ApiNotConnectedState provider="SMTP" status="error" message={requestError.message} /> : null}
+        {!requestError && smtpUnavailable ? <ApiNotConnectedState provider="SMTP" status={smtp.status === "unconfigured" ? "unconfigured" : smtp.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" /> : null}
         <form className="module-form" onSubmit={submit}>
           <label>
             Recipient
@@ -332,6 +345,7 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
               value={recipient}
               onChange={(event) => setRecipient(event.target.value)}
               placeholder="team@example.com"
+              disabled={Boolean(smtpUnavailable)}
             />
           </label>
           <label>
@@ -340,9 +354,10 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
               placeholder="Project update"
+              disabled={Boolean(smtpUnavailable)}
             />
           </label>
-          <button className="primary-action" data-permission="write">
+          <button className="primary-action" data-permission="write" disabled={Boolean(smtpUnavailable)}>
             Send mail <Icon name="send" size={16} />
           </button>
         </form>
@@ -754,7 +769,10 @@ function AgentStatusModule({ state }: { state: OriginalModuleState }) {
   );
 }
 
-function TokensModule({ state }: { state: OriginalModuleState }) {
+function TokensModule({ store }: { store: Store }) {
+  const state = store.state;
+  const hostedProviders = state.apiStatus.filter((provider) => ["openai", "openrouter", "groq", "xai"].includes(provider.name.toLowerCase()));
+  const noHostedProvider = hostedProviders.length > 0 && hostedProviders.every((provider) => ["disconnected", "error", "unconfigured", "unreachable"].includes(provider.status));
   return (
     <ModuleGrid
       stats={[
@@ -769,7 +787,7 @@ function TokensModule({ state }: { state: OriginalModuleState }) {
         eyebrow="Project usage"
         className="module-layout__primary"
       >
-        <div className="token-visual">
+        {noHostedProvider && state.tokens.totalMillions === 0 ? <ApiNotConnectedState provider="Model providers" status={hostedProviders.every((provider) => provider.status === "unconfigured") ? "unconfigured" : "error"} configureHref="/settings" /> : <div className="token-visual">
           <div
             className="token-donut"
             style={
@@ -793,7 +811,7 @@ function TokensModule({ state }: { state: OriginalModuleState }) {
               Output <strong>{state.tokens.outputPercent}%</strong>
             </span>
           </div>
-        </div>
+        </div>}
       </ModuleCard>
       <ModuleCard title="Cost Ledger" icon="billing" eyebrow="Provider usage">
         <div className="cost-display">
@@ -807,9 +825,15 @@ function TokensModule({ state }: { state: OriginalModuleState }) {
 }
 
 function ApiStatusModule({ store }: { store: Store }) {
+  const [requestError, setRequestError] = useState<ApiError | null>(null);
   const check = async () => {
-    const health = await apiRequest<Array<{ provider: string; status: string; latencyMs: number | null }>>(`/api/status?projectId=${store.projectId}`);
-    store.update((current) => ({ ...current, apiStatus: health.map((provider) => ({ id: `provider-${provider.provider}`, name: provider.provider, latency: provider.latencyMs ?? 0, status: provider.status === "connected" ? "connected" : provider.status === "degraded" ? "degraded" : provider.status === "unconfigured" ? "unconfigured" : "disconnected" })) }));
+    try {
+      const health = await apiRequest<Array<{ provider: string; status: ProviderStatus; latencyMs: number | null }>>(`/api/status?projectId=${store.projectId}`);
+      store.update((current) => ({ ...current, apiStatus: health.map((provider) => ({ id: `provider-${provider.provider}`, name: provider.provider, latency: provider.latencyMs ?? 0, status: provider.status })) }));
+      setRequestError(null);
+    } catch (error) {
+      setRequestError(normalizeApiError(error, "/api/status"));
+    }
   };
   return (
     <ModuleGrid
@@ -831,7 +855,7 @@ function ApiStatusModule({ store }: { store: Store }) {
         [
           "Offline",
           String(
-            store.state.apiStatus.filter((api) => api.status === "disconnected" || api.status === "unconfigured")
+            store.state.apiStatus.filter((api) => ["disconnected", "error", "unconfigured", "unreachable"].includes(api.status))
               .length,
           ),
         ],
@@ -843,29 +867,21 @@ function ApiStatusModule({ store }: { store: Store }) {
         eyebrow="Local health checks"
         className="module-layout__primary"
       >
-        <DataList
-          empty={<EmptyState module="api-status" onAction={check} />}
-        >
-          {store.state.apiStatus.map((provider) => (
-            <DataRow
-              key={provider.id}
-              title={provider.name}
-              detail={
-                provider.latency
-                  ? `${provider.latency} ms round trip`
-                  : "No response"
-              }
-              status={
-                provider.status === "connected"
-                  ? "success"
-                  : provider.status === "degraded"
-                    ? "warning"
-                    : "error"
-              }
-              statusText={provider.status}
-            />
-          ))}
-        </DataList>
+        {requestError ? (
+          <ApiNotConnectedState provider="Provider health API" status="error" message={requestError.message} onRetry={() => void check()} />
+        ) : (
+          <DataList empty={<EmptyState module="api-status" onAction={check} />}>
+            {store.state.apiStatus.map((provider) => (
+              <DataRow
+                key={provider.id}
+                title={provider.name}
+                detail={provider.latency ? `${provider.latency} ms round trip` : "No response"}
+                status={provider.status === "connected" ? "success" : provider.status === "degraded" ? "warning" : "error"}
+                statusText={provider.status}
+              />
+            ))}
+          </DataList>
+        )}
       </ModuleCard>
       <ModuleCard
         title="Manual Check"
@@ -884,6 +900,8 @@ function ApiStatusModule({ store }: { store: Store }) {
 }
 
 function GithubModule({ store, runUndoable }: { store: Store; runUndoable: UndoHandler }) {
+  const githubProvider = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "github");
+  const githubUnavailable = githubProvider && ["disconnected", "error", "unconfigured", "unreachable"].includes(githubProvider.status);
   return (
     <ModuleGrid
       stats={[
@@ -954,6 +972,8 @@ function GithubModule({ store, runUndoable }: { store: Store; runUndoable: UndoH
             </article>
             ))}
           </div>
+        ) : githubUnavailable ? (
+          <ApiNotConnectedState provider="GitHub" status={githubProvider.status === "unconfigured" ? "unconfigured" : githubProvider.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" />
         ) : (
           <EmptyState module="github" actionHref="/settings" />
         )}
@@ -964,6 +984,12 @@ function GithubModule({ store, runUndoable }: { store: Store; runUndoable: UndoH
 
 function ChatModule({ store }: { store: Store }) {
   const [message, setMessage] = useState("");
+  const [requestError, setRequestError] = useState<ApiError | null>(null);
+  const hermes = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "hermes");
+  const tts = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "tts");
+  const unavailableStatuses = ["disconnected", "error", "unconfigured", "unreachable"];
+  const hermesUnavailable = hermes && unavailableStatuses.includes(hermes.status);
+  const ttsUnavailable = tts && unavailableStatuses.includes(tts.status);
   useEffect(() => {
     const receiveTranscript = (event: Event) => {
       const detail = (event as CustomEvent<{ target: string; text: string }>)
@@ -976,27 +1002,29 @@ function ChatModule({ store }: { store: Store }) {
   }, []);
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || hermesUnavailable) return;
     const text = message.trim();
+    const messageId = crypto.randomUUID();
     setMessage("");
     store.update((current) => ({
       ...current,
       chat: [
         ...current.chat,
-        { id: crypto.randomUUID(), who: "me", text, time: "Now" },
+        { id: messageId, who: "me", text, time: "Now" },
       ],
     }));
-    let reply: string;
     try {
       const result = await apiRequest<{ text: string }>(`/api/providers?projectId=${store.projectId}`, { method: "POST", body: JSON.stringify({ action: "chat", provider: "hermes", message: text }) });
-      reply = result.text;
+      store.update((current) => ({
+        ...current,
+        chat: [...current.chat, { id: crypto.randomUUID(), who: "agent", text: result.text, time: "Now" }],
+      }));
+      setRequestError(null);
     } catch (error) {
-      reply = error instanceof Error ? error.message : "Hermes provider request failed.";
+      store.update((current) => ({ ...current, chat: current.chat.filter((item) => item.id !== messageId) }));
+      setMessage(text);
+      setRequestError(normalizeApiError(error, "/api/providers"));
     }
-    store.update((current) => ({
-      ...current,
-      chat: [...current.chat, { id: crypto.randomUUID(), who: "agent", text: reply, time: "Now" }],
-    }));
   };
   return (
     <ModuleGrid
@@ -1013,6 +1041,14 @@ function ChatModule({ store }: { store: Store }) {
         live
         className="module-layout__full"
       >
+        {requestError ? <ApiNotConnectedState provider="Hermes" status="error" message={requestError.message} /> : null}
+        {!requestError && hermesUnavailable ? (
+          <ApiNotConnectedState
+            provider="Hermes"
+            status={hermes.status === "unconfigured" ? "unconfigured" : hermes.status === "unreachable" ? "unreachable" : "error"}
+            configureHref="/settings"
+          />
+        ) : null}
         <div className="chat-thread">
           {store.state.chat.length ? store.state.chat.map((item) => (
             <div
@@ -1029,6 +1065,7 @@ function ChatModule({ store }: { store: Store }) {
                   type="button"
                   onClick={() => speakText(item.text)}
                   aria-label={`Read response aloud: ${item.text}`}
+                  disabled={Boolean(ttsUnavailable)}
                 >
                   <Icon name="voice" size={14} />
                   Read aloud
@@ -1048,16 +1085,18 @@ function ChatModule({ store }: { store: Store }) {
             onChange={(event) => setMessage(event.target.value)}
             placeholder="Message Hermes..."
             aria-label="Message Hermes"
+            disabled={Boolean(hermesUnavailable)}
           />
           <button
             className="icon-button"
             type="button"
             onClick={() => startVoiceCapture("chat")}
             aria-label="Dictate message"
+            disabled={Boolean(hermesUnavailable)}
           >
             <Icon name="microphone" size={17} />
           </button>
-          <button className="icon-button" aria-label="Send message">
+          <button className="icon-button" aria-label="Send message" disabled={Boolean(hermesUnavailable)}>
             <Icon name="send" size={17} />
           </button>
         </form>
@@ -1153,6 +1192,7 @@ function StatusBadge({
     | "connected"
     | "degraded"
     | "disconnected"
+    | "unreachable"
     | "unconfigured"
     | "success"
     | "warning"
@@ -1165,7 +1205,7 @@ function StatusBadge({
       ? "success"
       : status === "degraded"
         ? "warning"
-        : status === "disconnected"
+        : status === "disconnected" || status === "unreachable"
           ? "error"
           : status === "unconfigured"
             ? "neutral"

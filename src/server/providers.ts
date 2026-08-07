@@ -3,7 +3,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import nodemailer from "nodemailer";
 
+import type { ProviderStatus } from "@/lib/resource-state";
+
 export type ProviderName = "hermes" | "openai" | "openrouter" | "github" | "groq" | "xai" | "smtp" | "whisper" | "tts";
+export type ProviderHealth = { provider: ProviderName; status: ProviderStatus; latencyMs: number | null };
 
 const runFile = promisify(execFile);
 
@@ -61,32 +64,32 @@ export async function providerFetch(provider: Exclude<ProviderName, "smtp" | "he
   return fetch(`${config.endpoint}${pathname}`, { ...init, headers, signal: AbortSignal.timeout(8000) });
 }
 
-function smtpHealth() {
+function smtpHealth(): Promise<ProviderHealth> {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT ?? 587);
   if (!host) return Promise.resolve({ provider: "smtp", status: "unconfigured", latencyMs: null });
   const started = Date.now();
-  return new Promise<{ provider: string; status: string; latencyMs: number | null }>((resolve) => {
+  return new Promise<ProviderHealth>((resolve) => {
     const socket = net.createConnection({ host, port });
-    const finish = (status: string) => { socket.destroy(); resolve({ provider: "smtp", status, latencyMs: Date.now() - started }); };
+    const finish = (status: ProviderStatus) => { socket.destroy(); resolve({ provider: "smtp", status, latencyMs: Date.now() - started }); };
     socket.setTimeout(5000, () => finish("unreachable"));
     socket.once("connect", () => finish("connected"));
     socket.once("error", () => finish("unreachable"));
   });
 }
 
-export async function checkProviders() {
-  const httpChecks = Object.entries(configurations).map(async ([provider, config]) => {
-    if (!config.key) return { provider, status: "unconfigured", latencyMs: null };
+export async function checkProviders(): Promise<ProviderHealth[]> {
+  const httpChecks = Object.entries(configurations).map(async ([provider, config]): Promise<ProviderHealth> => {
+    if (!config.key) return { provider: provider as ProviderName, status: "unconfigured", latencyMs: null };
     const started = Date.now();
     try {
       const response = await providerFetch(provider as Exclude<ProviderName, "smtp" | "hermes">, config.healthPath);
-      return { provider, status: response.ok ? "connected" : "degraded", latencyMs: Date.now() - started };
+      return { provider: provider as ProviderName, status: response.ok ? "connected" : "degraded", latencyMs: Date.now() - started };
     } catch {
-      return { provider, status: "unreachable", latencyMs: Date.now() - started };
+      return { provider: provider as ProviderName, status: "unreachable", latencyMs: Date.now() - started };
     }
   });
-  const hermesCheck = !hermesEnabled()
+  const hermesCheck: Promise<ProviderHealth> = !hermesEnabled()
     ? Promise.resolve({ provider: "hermes", status: "unconfigured", latencyMs: null })
     : (async () => {
         const started = Date.now();

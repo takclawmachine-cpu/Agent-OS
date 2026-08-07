@@ -14,13 +14,18 @@ import {
 
 let database: AgentDatabase;
 
-beforeEach(() => { database = createDatabase(":memory:"); });
+beforeEach(() => {
+  database = createDatabase(":memory:");
+  const insertAgent = database.prepare("INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?)");
+  insertAgent.run("agent-1", "agent-os", "Test Coordinator", "test-model", "idle", 0);
+  insertAgent.run("agent-2", "agent-os", "Test Specialist", "test-model", "idle", 0);
+});
 afterEach(() => database.close());
 
 describe("backend policies and services", () => {
   it("enforces roles and optimistic conflict resolution", () => {
     expect(() => createTodo(database, "agent-os", { text: "Denied" }, "viewer")).toThrow(HttpError);
-    const todo = createTodo(database, "agent-os", { text: "Persist me", linkType: "plan", linkId: "plan-1" }, "editor") as { id: string };
+    const todo = createTodo(database, "agent-os", { text: "Persist me", linkType: "agent", linkId: "agent-1" }, "editor") as { id: string };
     updateTodo(database, "agent-os", todo.id, { completed: true, version: 1 }, "editor");
     expect(() => updateTodo(database, "agent-os", todo.id, { completed: false, version: 1 }, "editor")).toThrowError(/changed elsewhere/);
   });
@@ -37,7 +42,7 @@ describe("backend policies and services", () => {
     expect(saveVaultVersion(database, "agent-os", "notes/status.md", "one", "demo-admin")).toBe(1);
     expect(saveVaultVersion(database, "agent-os", "notes/status.md", "two", "demo-admin")).toBe(2);
     const report = createReport(database, "agent-os", { range: "Last 7 days", modules: ["Agents", "Cron"] }, "demo-admin", "admin");
-    expect(report.snapshot.agents).toHaveLength(3);
+    expect(report.snapshot.agents).toHaveLength(2);
     expect(database.prepare("SELECT COUNT(*) FROM reports").pluck().get()).toBe(1);
   });
 
@@ -48,7 +53,7 @@ describe("backend policies and services", () => {
     expect(database.prepare("SELECT status FROM terminal_commands WHERE id = ?").pluck().get(denied.id)).toBe("denied");
     expect(() => executeTerminal(database, "agent-os", "demo-admin", "session-1", "status", "viewer")).toThrow(HttpError);
     expect(() => executeTerminal(database, "agent-os", "demo-admin", "session-1", "x".repeat(257), "admin")).toThrowError(/256/);
-    expect(executeTerminal(database, "agent-os", "demo-admin", "session-1", "agents", "editor").output).toContain("3 configured");
+    expect(executeTerminal(database, "agent-os", "demo-admin", "session-1", "agents", "editor").output).toContain("2 configured");
   });
 
   it("verifies GitHub signatures and rejects replayed deliveries", () => {

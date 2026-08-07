@@ -6,17 +6,20 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icon";
 import { NeuralField } from "@/components/neural-field";
+import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
+import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { ONBOARDING_EVENT, ONBOARDING_KEY, clearSession, defaultOnboardingState, parseOnboarding } from "@/lib/auth";
 import { moduleGroups, modules } from "@/lib/modules";
 import { startVoiceCapture, useVoiceState } from "@/lib/voice";
 import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
+import { useOriginalModuleStore } from "@/state/mocks/original-modules";
 
-const projects = [
+type Project = { id: string; name: string; environment: string };
+
+const defaultProjects: Project[] = [
   { id: "agent-os", name: "Agent OS", environment: "Local" },
-  { id: "atlas", name: "Atlas Research", environment: "Local" },
-  { id: "northstar", name: "Northstar", environment: "Staging" },
-] as const;
+];
 
 const projectEvent = "agent-os-project-change";
 const themeEvent = "agent-os-theme-change";
@@ -34,14 +37,14 @@ function readStorage(key: string, fallback: string) {
   return window.localStorage.getItem(key) ?? fallback;
 }
 
-function parseRecentProjects(value: string) {
+function parseRecentProjects(value: string, fallback: string[]) {
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) && parsed.every((id) => typeof id === "string")
       ? parsed
-      : projects.map((project) => project.id);
+      : fallback;
   } catch {
-    return projects.map((project) => project.id);
+    return fallback;
   }
 }
 
@@ -49,8 +52,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const operations = useOperationalModuleStore();
+  const original = useOriginalModuleStore();
+  const realtime = useRealtimeStatus();
   const { online } = useReliability();
   const voiceState = useVoiceState();
+  const [projects, setProjects] = useState<Project[]>(defaultProjects);
+  const [projectsError, setProjectsError] = useState<ApiError | null>(null);
   const [projectOpen, setProjectOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -58,13 +65,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeProjectId = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
-    () => readStorage("agent-os-project", projects[0].id),
-    () => projects[0].id,
+    () => readStorage("agent-os-project", defaultProjects[0].id),
+    () => defaultProjects[0].id,
   );
   const recentProjectIds = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
-    () => readStorage("agent-os-project-history", JSON.stringify(projects.map((project) => project.id))),
-    () => JSON.stringify(projects.map((project) => project.id)),
+    () => readStorage("agent-os-project-history", JSON.stringify(defaultProjects.map((project) => project.id))),
+    () => JSON.stringify(defaultProjects.map((project) => project.id)),
   );
   const theme = useSyncExternalStore(
     (callback) => subscribe(themeEvent, callback),
@@ -77,14 +84,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => JSON.stringify(defaultOnboardingState),
   );
 
-  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? defaultProjects[0];
   const onboarding = parseOnboarding(onboardingValue);
   const activeProjectName = activeProject.id === "agent-os" ? onboarding.projectName || activeProject.name : activeProject.name;
   const unreadNotifications = operations.state.notifications.filter((notification) => !notification.read).length;
-  const recentProjects = parseRecentProjects(recentProjectIds);
-  const orderedProjects = recentProjects.map((id) => projects.find((project) => project.id === id)).filter(Boolean) as (typeof projects)[number][];
+  const recentProjects = parseRecentProjects(recentProjectIds, projects.map((project) => project.id));
+  const projectOrder = [...recentProjects, ...projects.map((project) => project.id).filter((id) => !recentProjects.includes(id))];
+  const orderedProjects = projectOrder.map((id) => projects.find((project) => project.id === id)).filter(Boolean) as Project[];
   const activeSlug = pathname.split("/")[1] || "dashboard";
   const searchResults = modules.filter((module) => `${module.label} ${module.description}`.toLowerCase().includes(query.toLowerCase()));
+  const apiUnavailable = projectsError !== null || operations.hydrationState.status === "error" || original.hydrationState.status === "error";
+  const providerUnavailable = original.state.apiStatus.some((provider) => ["disconnected", "error", "unreachable"].includes(provider.status));
+  const shellHealth = !online
+    ? { label: "Browser offline", unavailable: true }
+    : apiUnavailable
+      ? { label: "Agent OS API unavailable", unavailable: true }
+      : !realtime.connected
+        ? { label: "Realtime offline", unavailable: true }
+        : providerUnavailable
+          ? { label: "Provider degraded", unavailable: true }
+          : { label: "System nominal", unavailable: false };
 
   useEffect(() => {
     document.body.classList.toggle("theme-light", theme === "light");
@@ -97,6 +116,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.body.dataset.voiceState = voiceState;
   }, [voiceState]);
+
+  useEffect(() => {
+    void apiRequest<Project[]>("/api/projects")
+      .then((result) => {
+        setProjects(result.length ? result : defaultProjects);
+        setProjectsError(null);
+      })
+      .catch((error: unknown) => setProjectsError(normalizeApiError(error, "/api/projects")));
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -159,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {projectOpen ? (
               <div className="project-menu">
                 <span className="menu-label">Recent projects</span>
+                {projectsError ? <span className="menu-label" role="alert">Projects API unavailable</span> : null}
                 {orderedProjects.map((project) => (
                   <button type="button" key={project.id} onClick={() => selectProject(project.id)} className={project.id === activeProject.id ? "is-active" : ""}>
                     <Icon name="folder" size={16} />
@@ -177,7 +206,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <div className="topbar__actions">
-          <span className={`connection-pill ${online ? "" : "is-offline"}`.trim()}><span className="live-dot" />{online ? "Hermes local" : "Offline"}</span>
+          <span className={`connection-pill ${shellHealth.unavailable ? "is-offline" : ""}`.trim()}><span className="live-dot" />{shellHealth.label}</span>
           <button className="icon-button" type="button" onClick={() => startVoiceCapture("global")} aria-label={`Voice input: ${online ? voiceState : "offline"}`} disabled={!online || voiceState !== "idle"}>
             <Icon name="microphone" />
           </button>
@@ -210,8 +239,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <footer>
-          <span className="sidebar__signal"><span className="live-dot" />System nominal</span>
-          <small>{operations.state.environment} / Phase 2</small>
+          <span className="sidebar__signal"><span className="live-dot" />{shellHealth.label}</span>
+          <small>{operations.state.environment} / Phase 4</small>
         </footer>
       </aside>
 

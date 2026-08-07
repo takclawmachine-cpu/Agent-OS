@@ -148,19 +148,33 @@ function seedDatabase(database: AgentDatabase) {
     database.prepare("INSERT OR IGNORE INTO digest_configs VALUES (?, ?, ?, ?, ?)").run("agent-os", "daily", "18:00", JSON.stringify(["Agents", "Tokens", "GitHub", "Cron"]), now);
     database.prepare("INSERT OR IGNORE INTO preview_states VALUES (?, ?, ?, ?)").run("agent-os", "empty", "http://127.0.0.1:3000/dashboard", now);
     database.prepare("INSERT OR IGNORE INTO project_preferences VALUES (?, ?, ?)").run("agent-os", JSON.stringify({ desktopNotifications: true, digestEmail: false, compactDensity: false, liveUpdates: true }), now);
-    const insertAgent = database.prepare("INSERT OR IGNORE INTO agents VALUES (?, ?, ?, ?, ?, ?)");
-    insertAgent.run("agent-1", "agent-os", "Hermes", "Orchestrator", "working", 28);
-    insertAgent.run("agent-2", "agent-os", "Frontend Agent", "GPT-5.3-Codex", "working", 12);
-    insertAgent.run("agent-3", "agent-os", "Research Agent", "GPT-5.3", "idle", 8);
-    const insertPlan = database.prepare("INSERT OR IGNORE INTO plans VALUES (?, ?, ?, ?, ?, ?, ?)");
-    insertPlan.run("plan-1", "agent-os", "Phase 2 backend migration", "Hermes", "in-review", 1, now);
-    database.prepare("INSERT OR IGNORE INTO github_repositories VALUES (?, ?, ?, ?, ?, ?, ?)").run("repo-1", "agent-os", null, "agent-os", "local/agent-os", "main", now);
-    database.prepare("INSERT OR IGNORE INTO chat_messages VALUES (?, ?, ?, ?, ?, ?)").run("chat-1", "agent-os", null, "agent", "Project context loaded. Phase 2 backend is active.", now);
     const insertSkill = database.prepare("INSERT OR IGNORE INTO skills VALUES (?, ?, ?, ?)");
     skillSeed.forEach(([id, name, category]) => insertSkill.run(id, name, category, `${name} capability`));
     database.prepare("INSERT OR IGNORE INTO cron_jobs VALUES (?, ?, ?, ?, ?, ?, ?)").run("cron-backup", "agent-os", "Daily database backup", "0 2 * * *", "02:00", "active", "backup");
+    removeLegacyDemoData(database);
   });
   seed();
+}
+
+function removeLegacyDemoData(database: AgentDatabase) {
+  database.prepare(`DELETE FROM chat_messages
+    WHERE id = 'chat-1' AND project_id = 'agent-os' AND user_id IS NULL AND sender = 'agent'
+      AND text = 'Project context loaded. Phase 2 backend is active.'`).run();
+  database.prepare(`DELETE FROM github_repositories
+    WHERE id = 'repo-1' AND project_id = 'agent-os' AND provider_id IS NULL AND name = 'agent-os'
+      AND full_name = 'local/agent-os' AND branch = 'main'
+      AND NOT EXISTS (SELECT 1 FROM webhook_events WHERE repository_id = github_repositories.id)`).run();
+  database.prepare(`DELETE FROM plans
+    WHERE id = 'plan-1' AND project_id = 'agent-os' AND name = 'Phase 2 backend migration'
+      AND owner = 'Hermes' AND status = 'in-review' AND version = 1
+      AND NOT EXISTS (SELECT 1 FROM tasks WHERE link_type = 'plan' AND link_id = plans.id)`).run();
+  database.prepare(`DELETE FROM agents
+    WHERE project_id = 'agent-os'
+      AND ((id = 'agent-1' AND name = 'Hermes' AND model = 'Orchestrator' AND status = 'working' AND completed = 28)
+        OR (id = 'agent-2' AND name = 'Frontend Agent' AND model = 'GPT-5.3-Codex' AND status = 'working' AND completed = 12)
+        OR (id = 'agent-3' AND name = 'Research Agent' AND model = 'GPT-5.3' AND status = 'idle' AND completed = 8))
+      AND NOT EXISTS (SELECT 1 FROM agent_skills WHERE agent_id = agents.id)
+      AND NOT EXISTS (SELECT 1 FROM handoffs WHERE from_agent_id = agents.id OR to_agent_id = agents.id)`).run();
 }
 
 let singleton: AgentDatabase | null = null;

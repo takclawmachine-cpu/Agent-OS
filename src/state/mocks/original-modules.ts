@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { apiRequest, canWriteApi } from "@/lib/api-client";
+import { apiRequest, canWriteApi, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { subscribeRealtimeEvents } from "@/lib/realtime";
+import type { ProviderStatus, ResourceMetadata, ResourceState } from "@/lib/resource-state";
 
 export type Status = "success" | "warning" | "error" | "neutral";
 
@@ -26,7 +27,7 @@ export type OriginalModuleState = {
   agents: Array<{ id: string; name: string; model: string; status: "working" | "idle"; completed: number }>;
   liveProgress: Array<{ id: string; agent: string; task: string; percent: number }>;
   tokens: { totalMillions: number; inputPercent: number; outputPercent: number; cost: number };
-  apiStatus: Array<{ id: string; name: string; latency: number; status: "connected" | "degraded" | "disconnected" | "unconfigured" }>;
+  apiStatus: Array<{ id: string; name: string; latency: number; status: ProviderStatus | "disconnected" }>;
   github: Array<{ id: string; name: string; branch: string; openIssues: number; resolvedIssues: number; coverage: number }>;
   chat: Array<{ id: string; who: "me" | "agent"; text: string; time: string }>;
 };
@@ -36,61 +37,31 @@ const MODULE_EVENT = "agent-os-original-modules-change";
 const PROJECT_KEY = "agent-os-project";
 
 export const initialOriginalModuleState: OriginalModuleState = {
-  version: 2,
+  version: 4,
   mail: {
-    sent: 1248,
-    failed: 18,
-    messages: [
-      { id: "mail-1", recipient: "engineering@agragami.org", subject: "Phase 1 build summary", time: "09:42", status: "sent" },
-      { id: "mail-2", recipient: "ops@agragami.org", subject: "Hermes health report", time: "08:16", status: "failed" },
-    ],
+    sent: 0,
+    failed: 0,
+    messages: [],
   },
   cron: {
-    successfulRuns: 120,
-    jobs: [
-      { id: "cron-1", name: "Memory bank index", schedule: "*/30 * * * *", nextRun: "In 12 min", status: "active" },
-      { id: "cron-2", name: "Hermes health check", schedule: "*/5 * * * *", nextRun: "In 3 min", status: "active" },
-      { id: "cron-3", name: "Daily project digest", schedule: "0 18 * * *", nextRun: "18:00", status: "failed" },
-    ],
+    successfulRuns: 0,
+    jobs: [],
   },
   plans: {
     activeTab: "overview",
-    items: [
-      { id: "plan-1", name: "Phase 1 interface foundation", owner: "Hermes", status: "approved" },
-      { id: "plan-2", name: "Original module wiring", owner: "Frontend Agent", status: "approved" },
-      { id: "plan-3", name: "Local provider integration", owner: "Systems Agent", status: "on-hold" },
-    ],
+    items: [],
   },
   preview: { state: "empty", url: "http://127.0.0.1:3000/dashboard" },
-  agents: [
-    { id: "agent-1", name: "Hermes", model: "Orchestrator", status: "working", completed: 28 },
-    { id: "agent-2", name: "Frontend Agent", model: "GPT-5.3-Codex", status: "working", completed: 12 },
-    { id: "agent-3", name: "Research Agent", model: "GPT-5.3", status: "idle", completed: 8 },
-  ],
-  liveProgress: [
-    { id: "work-1", agent: "Hermes", task: "Coordinate Phase 1", percent: 87 },
-    { id: "work-2", agent: "Frontend Agent", task: "Original modules complete", percent: 100 },
-    { id: "work-3", agent: "Research Agent", task: "Validate module contracts", percent: 72 },
-  ],
-  tokens: { totalMillions: 12.48, inputPercent: 60, outputPercent: 40, cost: 4892.65 },
-  apiStatus: [
-    { id: "api-1", name: "OpenAI", latency: 121, status: "connected" },
-    { id: "api-2", name: "GitHub", latency: 184, status: "connected" },
-    { id: "api-3", name: "SMTP", latency: 342, status: "degraded" },
-    { id: "api-4", name: "Hermes", latency: 0, status: "disconnected" },
-  ],
-  github: [
-    { id: "repo-1", name: "agent-os", branch: "main", openIssues: 4, resolvedIssues: 31, coverage: 82 },
-    { id: "repo-2", name: "hermes-bridge", branch: "develop", openIssues: 7, resolvedIssues: 18, coverage: 68 },
-  ],
-  chat: [
-    { id: "chat-1", who: "agent", text: "Project context loaded. What should we move next?", time: "09:41" },
-    { id: "chat-2", who: "me", text: "Continue Phase 1 in sequence.", time: "09:42" },
-    { id: "chat-3", who: "agent", text: "Task 5 is complete. All original modules are wired.", time: "09:42" },
-  ],
+  agents: [],
+  liveProgress: [],
+  tokens: { totalMillions: 0, inputPercent: 0, outputPercent: 0, cost: 0 },
+  apiStatus: [],
+  github: [],
+  chat: [],
 };
 
 const initialStateJson = JSON.stringify(initialOriginalModuleState);
+const apiMetadata: ResourceMetadata = { source: "api", lastSucceededAt: null, retryable: true };
 
 function subscribe(eventName: string, callback: () => void) {
   window.addEventListener(eventName, callback);
@@ -110,17 +81,7 @@ function parseState(value: string | null): OriginalModuleState {
   try {
     const state = JSON.parse(value) as OriginalModuleState;
     if (state.version === initialOriginalModuleState.version) return state;
-
-    return {
-      ...state,
-      version: initialOriginalModuleState.version,
-      plans: {
-        ...state.plans,
-        items: state.plans.items.map((plan) => plan.id === "plan-2" && plan.status === "in-review" ? { ...plan, status: "approved" } : plan),
-      },
-      liveProgress: state.liveProgress.map((work) => work.id === "work-2" && work.task === "Wire original modules" ? { ...work, task: "Original modules complete", percent: 100 } : work),
-      chat: state.chat.map((message) => message.id === "chat-3" && message.text === "Task 5 is active. Original module contracts are ready." ? { ...message, text: "Task 5 is complete. All original modules are wired." } : message),
-    };
+    return structuredClone(initialOriginalModuleState);
   } catch {
     return structuredClone(initialOriginalModuleState);
   }
@@ -132,6 +93,12 @@ function writeState(projectId: string, state: OriginalModuleState) {
 }
 
 export function useOriginalModuleStore() {
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hydrationResult, setHydrationResult] = useState<{ projectId: string; state: ResourceState<OriginalModuleState> }>({
+    projectId: "",
+    state: { status: "loading", metadata: apiMetadata },
+  });
+  const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
     () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
@@ -143,22 +110,47 @@ export function useOriginalModuleStore() {
     () => initialStateJson,
   );
   const state = parseState(stateJson);
+  const hydrationState = hydrationResult.projectId === projectId
+    ? hydrationResult.state
+    : { status: "loading" as const, metadata: apiMetadata };
 
   const update = useCallback((mutate: (current: OriginalModuleState) => OriginalModuleState) => {
     const key = projectStorageKey(projectId);
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
     writeState(projectId, next);
-    if (canWriteApi()) void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "original", state: next }) }).catch(() => undefined);
+    if (canWriteApi()) {
+      void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "original", state: next }) })
+        .then(() => setPersistenceError(null))
+        .catch((error: unknown) => setPersistenceError(normalizeApiError(error, "/api/state")));
+    }
   }, [projectId]);
 
   useEffect(() => {
-    void apiRequest(`/api/status?projectId=${projectId}`)
-      .catch(() => undefined)
-      .then(() => apiRequest<{ original: OriginalModuleState }>(`/api/state?projectId=${projectId}`))
-      .then((result) => writeState(projectId, result.original))
-      .catch(() => undefined);
-  }, [projectId]);
+    void apiRequest<{ original: OriginalModuleState }>(`/api/state?projectId=${projectId}`)
+      .then((result) => {
+        writeState(projectId, result.original);
+        setHydrationResult({
+          projectId,
+          state: {
+            status: "ready-populated",
+            data: result.original,
+            metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
+          },
+        });
+      })
+      .catch((error: unknown) => {
+        const failure = normalizeApiError(error, "/api/state");
+        setHydrationResult({
+          projectId,
+          state: {
+            status: "error",
+            error: { code: failure.code, message: failure.message },
+            metadata: { ...apiMetadata, retryable: failure.retryable },
+          },
+        });
+      });
+  }, [projectId, refreshVersion]);
 
   useEffect(() => {
     return subscribeRealtimeEvents((event) => {
@@ -173,5 +165,7 @@ export function useOriginalModuleStore() {
     });
   }, [projectId, update]);
 
-  return { projectId, state, update };
+  const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
+
+  return { hydrationState, persistenceError, projectId, retryHydration, state, update };
 }

@@ -21,7 +21,7 @@ export function readModuleState(database: AgentDatabase, projectId: string) {
 
   return {
     original: {
-      version: 3,
+      version: 4,
       mail: { sent: Number(database.prepare("SELECT COUNT(*) FROM mail_logs WHERE project_id = ? AND status = 'sent'").pluck().get(projectId)), failed: Number(database.prepare("SELECT COUNT(*) FROM mail_logs WHERE project_id = ? AND status = 'failed'").pluck().get(projectId)), messages: rows(database, "SELECT id, recipient, subject, substr(created_at, 12, 5) AS time, status FROM mail_logs WHERE project_id = ? ORDER BY created_at DESC", projectId) },
       cron: { successfulRuns: 0, jobs: rows(database, "SELECT id, name, schedule, COALESCE(next_run, '') AS nextRun, status FROM cron_jobs WHERE project_id = ?", projectId) },
       plans: { activeTab: "overview", items: rows(database, "SELECT id, name, owner, status FROM plans WHERE project_id = ?", projectId) },
@@ -34,7 +34,7 @@ export function readModuleState(database: AgentDatabase, projectId: string) {
       chat: rows(database, "SELECT id, CASE sender WHEN 'user' THEN 'me' ELSE 'agent' END AS who, text, substr(created_at, 12, 5) AS time FROM chat_messages WHERE project_id = ? ORDER BY created_at", projectId),
     },
     operational: {
-      version: 2,
+      version: 3,
       notifications: rows(database, "SELECT id, title, detail, substr(created_at, 12, 5) AS time, severity, read FROM notifications WHERE project_id = ? ORDER BY created_at DESC", projectId).map((notification) => ({ ...notification, read: Boolean(notification.read) })),
       preferences: preferencesRow ? JSON.parse(preferencesRow.preferences_json) : { desktopNotifications: true, digestEmail: false, compactDensity: false, liveUpdates: true },
       billing: { monthlyCap: Number(cap?.monthly_cap ?? 7500), alertThreshold: Number(cap?.alert_threshold ?? 80) },

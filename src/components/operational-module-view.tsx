@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useDeferredValue, useState } from "react";
 
+import { ResourceStateGate } from "@/components/api-state";
 import { EmptyState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import { ModuleCard } from "@/components/module-card";
@@ -32,13 +33,15 @@ export function OperationalModuleView({ module }: { module: ModuleDefinition }) 
   return (
     <div className="module-view">
       <ModuleHeading module={module} live={module.slug === "notifications" || module.slug === "status"} />
-      {module.slug === "notifications" ? <NotificationsModule store={operations} /> : null}
-      {module.slug === "search" ? <SearchModule /> : null}
-      {module.slug === "settings" ? <SettingsModule store={operations} /> : null}
-      {module.slug === "status" ? <StatusModule /> : null}
-      {module.slug === "billing" ? <BillingModule operations={operations} /> : null}
-      {module.slug === "digests" ? <DigestsModule store={operations} /> : null}
-      {module.slug === "environments" ? <EnvironmentsModule store={operations} /> : null}
+      <ResourceStateGate state={operations.hydrationState} persistenceError={operations.persistenceError} onRetry={operations.retryHydration}>
+        {module.slug === "notifications" ? <NotificationsModule store={operations} /> : null}
+        {module.slug === "search" ? <SearchModule /> : null}
+        {module.slug === "settings" ? <SettingsModule store={operations} /> : null}
+        {module.slug === "status" ? <StatusModule /> : null}
+        {module.slug === "billing" ? <BillingModule operations={operations} /> : null}
+        {module.slug === "digests" ? <DigestsModule store={operations} /> : null}
+        {module.slug === "environments" ? <EnvironmentsModule store={operations} /> : null}
+      </ResourceStateGate>
     </div>
   );
 }

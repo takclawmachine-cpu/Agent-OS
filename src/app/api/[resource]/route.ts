@@ -47,10 +47,11 @@ export async function GET(request: Request, context: RouteContext<"/api/[resourc
     if (resource === "todos") return Response.json({ data: listTodos(database, project) });
     if (resource === "state") return Response.json({ data: readModuleState(database, project) });
     if (resource === "skills") return Response.json({ data: listSkills(database, project) });
+    if (resource === "projects") return Response.json({ data: database.prepare("SELECT id, name, environment FROM projects WHERE deleted_at IS NULL ORDER BY created_at").all() });
     if (resource === "providers" || resource === "status") {
       const health = await checkProviders();
       const save = database.prepare("INSERT INTO api_connections VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,latency_ms=excluded.latency_ms,checked_at=excluded.checked_at");
-      health.forEach((connection) => save.run(`provider-${connection.provider}`, project, connection.provider, connection.status === "connected" ? "connected" : connection.status === "degraded" ? "degraded" : "disconnected", connection.latencyMs, new Date().toISOString()));
+      health.forEach((connection) => save.run(`provider-${connection.provider}`, project, connection.provider, connection.status, connection.latencyMs, new Date().toISOString()));
       return Response.json({ data: health });
     }
     if (resource === "export") return Response.json(exportProject(database, project, session.userId, session.role), { headers: { "content-disposition": `attachment; filename=${project}-export.json` } });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { apiRequest } from "@/lib/api-client";
+import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
+import type { ResourceMetadata, ResourceState } from "@/lib/resource-state";
 
 export type ToolModuleState = {
   version: number;
@@ -20,23 +21,14 @@ const skillIds: Record<string, string> = {
 };
 
 const initialToolModuleState: ToolModuleState = {
-  version: 1,
-  todos: [
-    { id: "todo-1", text: "Review Phase 1 validation", completed: false, linkType: "plan", linkId: "plan-1" },
-    { id: "todo-2", text: "Confirm Hermes health", completed: true, linkType: "agent", linkId: "agent-1" },
-  ],
-  skillAssignments: {
-    "agent-1": ["Prompt Engineering", "Deployment"],
-    "agent-2": ["Git", "Next.js", "Testing"],
-    "agent-3": ["SQL", "FastAPI"],
-  },
-  terminal: [
-    { id: "terminal-1", kind: "output", text: "Agent OS mock shell · commands: help, status, agents, clear" },
-    { id: "terminal-2", kind: "output", text: "project:agent-os $ ready" },
-  ],
+  version: 2,
+  todos: [],
+  skillAssignments: {},
+  terminal: [],
 };
 
 const initialJson = JSON.stringify(initialToolModuleState);
+const apiMetadata: ResourceMetadata = { source: "api", lastSucceededAt: null, retryable: true };
 
 function subscribe(eventName: string, callback: () => void) {
   window.addEventListener(eventName, callback);
@@ -54,7 +46,8 @@ function key(projectId: string) {
 function parse(value: string | null): ToolModuleState {
   if (!value) return structuredClone(initialToolModuleState);
   try {
-    return { ...structuredClone(initialToolModuleState), ...JSON.parse(value) } as ToolModuleState;
+    const state = JSON.parse(value) as ToolModuleState;
+    return state.version === initialToolModuleState.version ? state : structuredClone(initialToolModuleState);
   } catch {
     return structuredClone(initialToolModuleState);
   }
@@ -66,6 +59,12 @@ function write(projectId: string, state: ToolModuleState) {
 }
 
 export function useToolModuleStore() {
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [hydrationResult, setHydrationResult] = useState<{ projectId: string; state: ResourceState<ToolModuleState> }>({
+    projectId: "",
+    state: { status: "loading", metadata: apiMetadata },
+  });
+  const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
     () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
@@ -77,6 +76,14 @@ export function useToolModuleStore() {
     () => initialJson,
   );
   const state = parse(stateJson);
+  const hydrationState = hydrationResult.projectId === projectId
+    ? hydrationResult.state
+    : { status: "loading" as const, metadata: apiMetadata };
+  const trackPersistence = useCallback(<T,>(request: Promise<T>) => {
+    void request
+      .then(() => setPersistenceError(null))
+      .catch((error: unknown) => setPersistenceError(normalizeApiError(error)));
+  }, []);
   const update = useCallback((mutate: (current: ToolModuleState) => ToolModuleState) => {
     const storageKey = key(projectId);
     const current = parse(window.localStorage.getItem(storageKey));
@@ -84,18 +91,18 @@ export function useToolModuleStore() {
     write(projectId, next);
 
     current.todos.filter((todo) => !next.todos.some((candidate) => candidate.id === todo.id)).forEach((todo) => {
-      void apiRequest(`/api/todos?projectId=${projectId}`, { method: "DELETE", body: JSON.stringify({ id: todo.id }) });
+      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "DELETE", body: JSON.stringify({ id: todo.id }) }));
     });
     next.todos.filter((todo) => !current.todos.some((candidate) => candidate.id === todo.id)).forEach((todo) => {
-      void apiRequest(`/api/todos?projectId=${projectId}`, { method: "POST", body: JSON.stringify(todo) });
+      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "POST", body: JSON.stringify(todo) }));
     });
     next.todos.filter((todo) => current.todos.some((candidate) => candidate.id === todo.id && (candidate.completed !== todo.completed || candidate.text !== todo.text))).forEach((todo) => {
       const previous = current.todos.find((candidate) => candidate.id === todo.id);
-      void apiRequest<{ version: number }>(`/api/todos?projectId=${projectId}`, { method: "PATCH", body: JSON.stringify({ id: todo.id, completed: todo.completed, text: todo.text, version: previous?.version ?? 1 }) })
+      trackPersistence(apiRequest<{ version: number }>(`/api/todos?projectId=${projectId}`, { method: "PATCH", body: JSON.stringify({ id: todo.id, completed: todo.completed, text: todo.text, version: previous?.version ?? 1 }) })
         .then((saved) => {
           const latest = parse(window.localStorage.getItem(storageKey));
           write(projectId, { ...latest, todos: latest.todos.map((item) => item.id === todo.id ? { ...item, version: saved.version } : item) });
-        });
+        }));
     });
     const agents = new Set([...Object.keys(current.skillAssignments), ...Object.keys(next.skillAssignments)]);
     agents.forEach((agentId) => {
@@ -103,27 +110,50 @@ export function useToolModuleStore() {
       const after = next.skillAssignments[agentId] ?? [];
       [...new Set([...before, ...after])].forEach((skill) => {
         if (before.includes(skill) === after.includes(skill) || !skillIds[skill]) return;
-        void apiRequest(`/api/skills?projectId=${projectId}`, { method: "POST", body: JSON.stringify({ agentId, skillId: skillIds[skill], assigned: after.includes(skill) }) });
+        trackPersistence(apiRequest(`/api/skills?projectId=${projectId}`, { method: "POST", body: JSON.stringify({ agentId, skillId: skillIds[skill], assigned: after.includes(skill) }) }));
       });
     });
-  }, [projectId]);
+  }, [projectId, trackPersistence]);
   useEffect(() => {
     void Promise.all([
       apiRequest<Array<{ id: string; text: string; completed: number; linkType: "none" | "plan" | "agent"; linkId: string; version: number }>>(`/api/todos?projectId=${projectId}`),
       apiRequest<Array<{ name: string; agentIds: string | null }>>(`/api/skills?projectId=${projectId}`),
       apiRequest<Array<{ id: string; command: string; output: string; status: string }>>(`/api/terminal?projectId=${projectId}`),
-    ]).then(([todos, skills, commands]) => write(projectId, {
-      ...parse(window.localStorage.getItem(key(projectId))),
-      todos: todos.map((todo) => ({ ...todo, completed: Boolean(todo.completed) })),
-      skillAssignments: skills.reduce<Record<string, string[]>>((assignments, skill) => {
-        skill.agentIds?.split(",").forEach((agentId) => { (assignments[agentId] ??= []).push(skill.name); });
-        return assignments;
-      }, {}),
-      terminal: commands.flatMap((command) => [
-        { id: `${command.id}-command`, kind: "command" as const, text: `$ ${command.command}` },
-        { id: command.id, kind: command.status === "completed" ? "output" as const : "error" as const, text: command.output },
-      ]),
-    })).catch(() => undefined);
-  }, [projectId]);
-  return { projectId, state, update };
+    ]).then(([todos, skills, commands]) => {
+      const next: ToolModuleState = {
+        ...parse(window.localStorage.getItem(key(projectId))),
+        todos: todos.map((todo) => ({ ...todo, completed: Boolean(todo.completed) })),
+        skillAssignments: skills.reduce<Record<string, string[]>>((assignments, skill) => {
+          skill.agentIds?.split(",").forEach((agentId) => { (assignments[agentId] ??= []).push(skill.name); });
+          return assignments;
+        }, {}),
+        terminal: commands.flatMap((command) => [
+          { id: `${command.id}-command`, kind: "command" as const, text: `$ ${command.command}` },
+          { id: command.id, kind: command.status === "completed" ? "output" as const : "error" as const, text: command.output },
+        ]),
+      };
+      write(projectId, next);
+      setHydrationResult({
+        projectId,
+        state: {
+          status: "ready-populated",
+          data: next,
+          metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
+        },
+      });
+    }).catch((error: unknown) => {
+      const failure = normalizeApiError(error);
+      setHydrationResult({
+        projectId,
+        state: {
+          status: "error",
+          error: { code: failure.code, message: failure.message },
+          metadata: { ...apiMetadata, retryable: failure.retryable },
+        },
+      });
+    });
+  }, [projectId, refreshVersion]);
+  const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
+
+  return { hydrationState, persistenceError, projectId, retryHydration, state, update };
 }
