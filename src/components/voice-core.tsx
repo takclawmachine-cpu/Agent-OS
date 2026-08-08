@@ -6,7 +6,15 @@ import { Icon } from "@/components/icon";
 import { useReliability } from "@/components/reliability-provider";
 import { startVoiceCapture, useVoiceState } from "@/lib/voice";
 
-export function VoiceCore({ projectId, target = "dashboard" }: { projectId: string; target?: string }) {
+export function VoiceCore({
+  onChatClick,
+  projectId,
+  target = "dashboard",
+}: {
+  onChatClick?: () => void;
+  projectId: string;
+  target?: string;
+}) {
   const state = useVoiceState(projectId);
   const { online } = useReliability();
 
@@ -28,6 +36,12 @@ export function VoiceCore({ projectId, target = "dashboard" }: { projectId: stri
         {Array.from({ length: 19 }, (_, index) => <span key={index} />)}
       </div>
       <strong className="voice-label">{label}</strong>
+      {onChatClick ? (
+        <button className="voice-chat-button" type="button" onClick={onChatClick}>
+          <Icon name="chat" size={14} />
+          Chat
+        </button>
+      ) : null}
     </div>
   );
 }

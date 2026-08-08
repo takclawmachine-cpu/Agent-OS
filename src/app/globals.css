@@ -469,8 +469,9 @@ kbd {
   overflow: hidden;
   border: var(--stroke-thin) solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--surface-overlay, var(--surface-raised));
+  background: var(--surface-base);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+  backdrop-filter: none;
 }
 
 .notification-menu > header {
@@ -1637,6 +1638,31 @@ kbd {
   color: var(--text-primary);
   font-family: var(--font-display);
   font-size: var(--text-lg);
+}
+
+.voice-chat-button {
+  position: absolute;
+  top: calc(50% + 176px);
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: var(--stroke-thin) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: border-color var(--motion-fast), color var(--motion-fast), background var(--motion-fast);
+}
+
+.voice-chat-button:hover {
+  border-color: var(--border-strong);
+  color: var(--accent-primary);
+  background: var(--surface-hover);
 }
 
 .voice-hint { top: calc(50% + 150px); }

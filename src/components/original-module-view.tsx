@@ -126,7 +126,7 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
   const openPlans = state.plans.items.filter(
     (plan) => plan.status !== "approved",
   ).length;
-  const dashboardMenus = modules.filter((module) => module.slug !== "dashboard" && module.slug !== "notifications");
+  const dashboardMenus = modules.filter((module) => module.slug !== "dashboard" && module.slug !== "notifications" && module.slug !== "chat");
   const splitIndex = Math.ceil(dashboardMenus.length / 2);
   const leftMenus = dashboardMenus.slice(0, splitIndex);
   const rightMenus = dashboardMenus.slice(splitIndex);
@@ -152,7 +152,7 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
             </button>
           ))}
         </nav>
-        <VoiceCore projectId={projectId} />
+        <VoiceCore projectId={projectId} onChatClick={() => openModuleDialog("chat")} />
         <nav className="hero-menu hero-menu--right" aria-label="Module actions right">
           {rightMenus.map((module) => (
             <button key={module.slug} type="button" className="hero-menu__button" onClick={() => openModuleDialog(module.slug)}>

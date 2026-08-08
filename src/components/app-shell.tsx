@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icon";
 import { ModuleView } from "@/components/module-view";
@@ -69,6 +69,7 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [moduleDialogSlug, setModuleDialogSlug] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const notificationWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const activeProjectId = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
@@ -160,11 +161,28 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
       const detail = (event as CustomEvent<{ slug?: string }>).detail;
       if (!detail?.slug || !getModule(detail.slug)) return;
       setModuleDialogSlug(detail.slug);
+      setNotificationOpen(false);
       setCommandOpen(false);
     };
     window.addEventListener(openModuleDialogEvent, onOpenModuleDialog);
     return () => window.removeEventListener(openModuleDialogEvent, onOpenModuleDialog);
   }, []);
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (notificationWrapperRef.current?.contains(target)) return;
+      setNotificationOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [notificationOpen]);
 
   const openModuleDialog = (slug: string) => {
     if (!getModule(slug)) return;
@@ -239,8 +257,7 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <button className="icon-button" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}>
             <Icon name={theme === "light" ? "moon" : "sun"} />
           </button>
-          <div className="notification-wrapper">
-            {notificationOpen ? <button className="profile-menu__backdrop" type="button" onClick={() => setNotificationOpen(false)} aria-label="Close notifications menu" /> : null}
+          <div className="notification-wrapper" ref={notificationWrapperRef}>
             <button className="icon-button notification-button" type="button" onClick={() => setNotificationOpen((open) => !open)} aria-expanded={notificationOpen} aria-haspopup="dialog" aria-label={`${unreadNotifications} unread notifications`}>
               <Icon name="notifications" />
               {unreadNotifications ? <span className="badge-dot">{unreadNotifications}</span> : null}
