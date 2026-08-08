@@ -7,6 +7,7 @@ import type { ProviderStatus } from "@/lib/resource-state";
 
 export type ProviderName = "hermes" | "openai" | "openrouter" | "github" | "groq" | "xai" | "smtp" | "whisper" | "tts";
 export type ProviderHealth = { provider: ProviderName; status: ProviderStatus; latencyMs: number | null };
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 const runFile = promisify(execFile);
 
@@ -115,12 +116,13 @@ export async function sendProviderMail(input: { to: string; subject: string; tex
   return { messageId: result.messageId, accepted: result.accepted.map(String), rejected: result.rejected.map(String) };
 }
 
-export async function completeChat(provider: "hermes" | "openai" | "openrouter" | "groq" | "xai", message: string) {
-  if (provider === "hermes") return completeHermesChat(message);
+export async function completeChat(provider: "hermes" | "openai" | "openrouter" | "groq" | "xai", message: string | ChatMessage[]) {
+  const messages = typeof message === "string" ? [{ role: "user" as const, content: message }] : message;
+  if (provider === "hermes") return completeHermesChat(messages.map((entry) => `${entry.role.toUpperCase()}: ${entry.content}`).join("\n\n"));
   const response = await providerFetch(provider, "/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: process.env.CHAT_MODEL ?? "gpt-4o-mini", messages: [{ role: "user", content: message }] }),
+    body: JSON.stringify({ model: process.env.CHAT_MODEL ?? "gpt-4o-mini", messages }),
   });
   if (!response.ok) throw new Error(`${provider} returned ${response.status}.`);
   const result = await response.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };

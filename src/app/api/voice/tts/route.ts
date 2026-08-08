@@ -1,3 +1,4 @@
+import { getDatabase } from "@/server/database";
 import { providerFetch } from "@/server/providers";
 import { enforceRateLimit, errorResponse, HttpError, readJson, requireBodyWithinLimit, requireSameOrigin, requireSession } from "@/server/policies";
 
@@ -10,7 +11,8 @@ export async function POST(request: Request) {
     requireSameOrigin(request);
     requireBodyWithinLimit(request, 16 * 1024);
     enforceRateLimit(`voice:tts:${session.userId}`, 20, 60_000);
-    const { text } = await readJson<{ text: string }>(request);
+    const { text, projectId } = await readJson<{ text: string; projectId: string }>(request);
+    if (!projectId || !getDatabase().prepare("SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL").get(projectId)) throw new HttpError(404, "Project not found.");
     if (!text?.trim() || text.length > 4000) throw new HttpError(400, "TTS text must contain between 1 and 4000 characters.");
     const response = await providerFetch("tts", "/audio/speech", {
       method: "POST",

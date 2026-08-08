@@ -7,6 +7,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useAuthenticatedSession } from "@/components/auth-gate";
 import { Icon } from "@/components/icon";
 import { NeuralField } from "@/components/neural-field";
+import { useProjectPanels } from "@/components/project-panel-provider";
 import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
@@ -53,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const original = useOriginalModuleStore();
   const realtime = useRealtimeStatus();
   const { online } = useReliability();
-  const voiceState = useVoiceState();
+  const { openProjectPanel } = useProjectPanels();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsError, setProjectsError] = useState<ApiError | null>(null);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -66,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => readStorage("agent-os-project", ""),
     () => "",
   );
+  const voiceState = useVoiceState(activeProjectId);
   const recentProjectIds = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
     () => readStorage("agent-os-project-history", "[]"),
@@ -187,10 +189,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="menu-label">Recent projects</span>
                 {projectsError ? <span className="menu-label" role="alert">Projects API unavailable</span> : null}
                 {orderedProjects.map((project) => (
-                  <button type="button" key={project.id} onClick={() => selectProject(project.id)} className={project.id === activeProject.id ? "is-active" : ""}>
-                    <Icon name="folder" size={16} />
-                    <span><strong>{project.name}</strong><small>{project.environment}</small></span>
-                  </button>
+                  <div className={`project-menu__row ${project.id === activeProject.id ? "is-active" : ""}`} key={project.id}>
+                    <button type="button" onClick={() => selectProject(project.id)} title={`Open ${project.name} workspace`}><Icon name="folder" size={16} /><span><strong>{project.name}</strong><small>{project.environment}</small></span></button>
+                    <button className="icon-button" type="button" onClick={() => { openProjectPanel(project); setProjectOpen(false); }} aria-label={`Open ${project.name} assistant`} title="Open project assistant"><Icon name="chat" size={15} /></button>
+                  </div>
                 ))}
               </div>
             ) : null}
@@ -205,7 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="topbar__actions">
           <span className={`connection-pill ${shellHealth.unavailable ? "is-offline" : ""}`.trim()}><span className="live-dot" />{shellHealth.label}</span>
-          <button className="icon-button" type="button" onClick={() => startVoiceCapture("global")} aria-label={`Voice input: ${online ? voiceState : "offline"}`} disabled={!online || voiceState !== "idle"}>
+          <button className="icon-button" type="button" onClick={() => startVoiceCapture("global", activeProjectId)} aria-label={`Voice input: ${online ? voiceState : "offline"}`} disabled={!online || !activeProjectId || voiceState !== "idle"}>
             <Icon name="microphone" />
           </button>
           <button className="icon-button" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}>

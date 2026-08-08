@@ -27,7 +27,7 @@ export function ToolModuleView({ module }: { module: ModuleDefinition }) {
     <div className="module-view">
       <header className="page-heading"><span className="page-heading__icon"><Icon name={module.icon} size={24} /></span><span><small>PROJECT TOOLS</small><h1>{module.label}</h1><p>{module.description}</p></span><span className="shell-status"><span className="live-dot" />Phase 2 backend</span></header>
       <ResourceStateGate state={tools.hydrationState} persistenceError={tools.persistenceError} onRetry={tools.retryHydration}>
-        {module.slug === "voice" ? <VoiceModule /> : null}
+        {module.slug === "voice" ? <VoiceModule store={tools} /> : null}
         {module.slug === "todo" ? <TodoModule store={tools} /> : null}
         {module.slug === "skills" ? <SkillsModule store={tools} /> : null}
         {module.slug === "terminal" ? <TerminalModule store={tools} /> : null}
@@ -39,8 +39,8 @@ export function ToolModuleView({ module }: { module: ModuleDefinition }) {
   );
 }
 
-function VoiceModule() {
-  const state = useVoiceState();
+function VoiceModule({ store }: { store: ToolStore }) {
+  const state = useVoiceState(store.projectId);
   const { online } = useReliability();
   const original = useOriginalModuleStore();
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -48,13 +48,13 @@ function VoiceModule() {
   const whisperUnavailable = whisper && ["disconnected", "error", "unconfigured", "unreachable"].includes(whisper.status);
   useEffect(() => {
     const receive = (event: Event) => {
-      const detail = (event as CustomEvent<{ target: string; text: string }>).detail;
-      if (detail.target === "voice") setTranscript(detail.text);
+      const detail = (event as CustomEvent<{ projectId: string; target: string; text: string }>).detail;
+      if (detail.projectId === store.projectId && detail.target === "voice") setTranscript(detail.text);
     };
     window.addEventListener(VOICE_TRANSCRIPT_EVENT, receive);
     return () => window.removeEventListener(VOICE_TRANSCRIPT_EVENT, receive);
-  }, []);
-  return <ToolGrid stats={[["State", whisperUnavailable ? whisper.status : online ? state : "offline"], ["Provider", "Whisper"], ["Mode", "STT + TTS"]]}><ModuleCard title="Voice Channel" icon="voice" eyebrow="Shared state machine" live className="module-layout__primary"><OfflineNotice source="Voice transcription" />{whisperUnavailable ? <ApiNotConnectedState provider="Whisper" status={whisper.status === "unconfigured" ? "unconfigured" : whisper.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" /> : <div className="voice-module-surface"><VoiceCore target="voice" /></div>}</ModuleCard><ModuleCard title="Transcript" icon="chat" eyebrow="Latest capture">{state === "error" ? <ModuleError source="voice" title="Microphone unavailable" message="Permission was denied or no usable speech was detected. Text input remains available." /> : transcript ? <div className="transcript-panel"><small>COMMITTED TEXT</small><p>{transcript}</p><button className="secondary-action" onClick={() => startVoiceCapture("voice")} disabled={!online || state !== "idle" || Boolean(whisperUnavailable)}><Icon name="microphone" size={15} />Capture again</button><button className="secondary-action" onClick={simulateVoiceError} disabled={!online || state !== "idle"}>Simulate permission error</button></div> : whisperUnavailable ? <ApiNotConnectedState provider="Whisper" status={whisper.status === "unconfigured" ? "unconfigured" : whisper.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" /> : <EmptyState module="voice" onAction={() => startVoiceCapture("voice")} />}</ModuleCard></ToolGrid>;
+  }, [store.projectId]);
+  return <ToolGrid stats={[["State", whisperUnavailable ? whisper.status : online ? state : "offline"], ["Provider", "Whisper"], ["Mode", "STT + TTS"]]}><ModuleCard title="Voice Channel" icon="voice" eyebrow="Shared state machine" live className="module-layout__primary"><OfflineNotice source="Voice transcription" />{whisperUnavailable ? <ApiNotConnectedState provider="Whisper" status={whisper.status === "unconfigured" ? "unconfigured" : whisper.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" /> : <div className="voice-module-surface"><VoiceCore projectId={store.projectId} target="voice" /></div>}</ModuleCard><ModuleCard title="Transcript" icon="chat" eyebrow="Latest capture">{state === "error" ? <ModuleError source="voice" title="Microphone unavailable" message="Permission was denied or no usable speech was detected. Text input remains available." /> : transcript ? <div className="transcript-panel"><small>COMMITTED TEXT</small><p>{transcript}</p><button className="secondary-action" onClick={() => startVoiceCapture("voice", store.projectId)} disabled={!online || state !== "idle" || Boolean(whisperUnavailable)}><Icon name="microphone" size={15} />Capture again</button><button className="secondary-action" onClick={() => simulateVoiceError(store.projectId)} disabled={!online || state !== "idle"}>Simulate permission error</button></div> : whisperUnavailable ? <ApiNotConnectedState provider="Whisper" status={whisper.status === "unconfigured" ? "unconfigured" : whisper.status === "unreachable" ? "unreachable" : "error"} configureHref="/settings" /> : <EmptyState module="voice" onAction={() => startVoiceCapture("voice", store.projectId)} />}</ModuleCard></ToolGrid>;
 }
 
 function TodoModule({ store }: { store: ToolStore }) {
@@ -65,12 +65,12 @@ function TodoModule({ store }: { store: ToolStore }) {
   const [linkId, setLinkId] = useState("");
   useEffect(() => {
     const receive = (event: Event) => {
-      const detail = (event as CustomEvent<{ target: string; text: string }>).detail;
-      if (detail.target === "todo") setText(detail.text);
+      const detail = (event as CustomEvent<{ projectId: string; target: string; text: string }>).detail;
+      if (detail.projectId === store.projectId && detail.target === "todo") setText(detail.text);
     };
     window.addEventListener(VOICE_TRANSCRIPT_EVENT, receive);
     return () => window.removeEventListener(VOICE_TRANSCRIPT_EVENT, receive);
-  }, []);
+  }, [store.projectId]);
   const options = linkType === "plan" ? original.state.plans.items.map((item) => ({ id: item.id, label: item.name })) : linkType === "agent" ? original.state.agents.map((item) => ({ id: item.id, label: item.name })) : [];
   const add = (event: FormEvent) => { event.preventDefault(); if (!text.trim()) return; store.update((state) => ({ ...state, todos: [{ id: crypto.randomUUID(), text: text.trim(), completed: false, linkType, linkId: linkType === "none" ? "" : linkId }, ...state.todos] })); setText(""); };
   const remove = (todo: ToolModuleState["todos"][number]) => runUndoable({

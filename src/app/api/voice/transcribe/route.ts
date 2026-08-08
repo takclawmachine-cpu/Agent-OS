@@ -1,3 +1,4 @@
+import { getDatabase } from "@/server/database";
 import { providerFetch } from "@/server/providers";
 import { enforceRateLimit, errorResponse, HttpError, requireBodyWithinLimit, requireSameOrigin, requireSession } from "@/server/policies";
 
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
     requireBodyWithinLimit(request, 10 * 1024 * 1024);
     enforceRateLimit(`voice:transcribe:${session.userId}`, 10, 60_000);
     const input = await request.formData();
+    const projectId = input.get("projectId");
+    if (typeof projectId !== "string" || !getDatabase().prepare("SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL").get(projectId)) throw new HttpError(404, "Project not found.");
     const audio = input.get("audio");
     if (!(audio instanceof File) || audio.size === 0) throw new HttpError(400, "No speech audio was received.");
     if (audio.size > 10 * 1024 * 1024) throw new HttpError(413, "Speech audio must not exceed 10 MB.");

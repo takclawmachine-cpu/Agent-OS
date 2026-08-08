@@ -6,8 +6,8 @@ import { Icon } from "@/components/icon";
 import { useReliability } from "@/components/reliability-provider";
 import { startVoiceCapture, useVoiceState } from "@/lib/voice";
 
-export function VoiceCore({ target = "dashboard" }: { target?: string }) {
-  const state = useVoiceState();
+export function VoiceCore({ projectId, target = "dashboard" }: { projectId: string; target?: string }) {
+  const state = useVoiceState(projectId);
   const { online } = useReliability();
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function VoiceCore({ target = "dashboard" }: { target?: string }) {
     <div className="voice-stage">
       <div className="voice-orbit voice-orbit--outer" />
       <div className="voice-orbit voice-orbit--inner" />
-      <button className={`voice-core voice-core--${state}`} type="button" onClick={() => startVoiceCapture(target)} aria-label={label} disabled={!online}>
+      <button className={`voice-core voice-core--${state}`} type="button" onClick={() => startVoiceCapture(target, projectId)} aria-label={label} disabled={!online}>
         <span className="voice-core__halo" />
         <span className="voice-core__button"><Icon name="microphone" size={30} /></span>
       </button>

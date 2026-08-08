@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { ProjectPanelProvider } from "@/components/project-panel-provider";
 import { ReliabilityProvider } from "@/components/reliability-provider";
 import { RealtimeProvider } from "@/components/realtime-provider";
 import { UndoProvider } from "@/components/undo-provider";
@@ -22,7 +23,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <RealtimeProvider>
             <UndoProvider>
               <AuthGate>
-                <AppShell>{children}</AppShell>
+                <ProjectPanelProvider>
+                  <AppShell>{children}</AppShell>
+                </ProjectPanelProvider>
               </AuthGate>
             </UndoProvider>
           </RealtimeProvider>

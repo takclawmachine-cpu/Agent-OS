@@ -33,7 +33,7 @@ export function OriginalModuleView({ module }: { module: ModuleDefinition }) {
 
   if (module.slug === "dashboard") return (
     <ResourceStateGate state={store.hydrationState} persistenceError={store.persistenceError} onRetry={store.retryHydration}>
-      <Dashboard state={store.state} />
+      <Dashboard projectId={store.projectId} state={store.state} />
     </ResourceStateGate>
   );
 
@@ -93,7 +93,7 @@ function ModuleHeading({
 
 type Store = ReturnType<typeof useOriginalModuleStore>;
 
-function Dashboard({ state }: { state: OriginalModuleState }) {
+function Dashboard({ projectId, state }: { projectId: string; state: OriginalModuleState }) {
   const workingAgents = state.agents.filter(
     (agent) => agent.status === "working",
   ).length;
@@ -142,7 +142,7 @@ function Dashboard({ state }: { state: OriginalModuleState }) {
           <strong>{activeJobs + openPlans}</strong>
           <span>Jobs and plans</span>
         </div>
-        <VoiceCore />
+        <VoiceCore projectId={projectId} />
       </section>
       <section className="dashboard-grid">
         <ModuleCard
@@ -965,14 +965,14 @@ function ChatModule({ store }: { store: Store }) {
   const ttsUnavailable = tts && unavailableStatuses.includes(tts.status);
   useEffect(() => {
     const receiveTranscript = (event: Event) => {
-      const detail = (event as CustomEvent<{ target: string; text: string }>)
+      const detail = (event as CustomEvent<{ projectId: string; target: string; text: string }>)
         .detail;
-      if (detail.target === "chat") setMessage(detail.text);
+      if (detail.projectId === store.projectId && detail.target === "chat") setMessage(detail.text);
     };
     window.addEventListener(VOICE_TRANSCRIPT_EVENT, receiveTranscript);
     return () =>
       window.removeEventListener(VOICE_TRANSCRIPT_EVENT, receiveTranscript);
-  }, []);
+  }, [store.projectId]);
   const send = async (event: FormEvent) => {
     event.preventDefault();
     if (!message.trim() || hermesUnavailable) return;
@@ -1036,7 +1036,7 @@ function ChatModule({ store }: { store: Store }) {
                 <button
                   className="message-audio"
                   type="button"
-                  onClick={() => speakText(item.text)}
+                  onClick={() => speakText(item.text, store.projectId)}
                   aria-label={`Read response aloud: ${item.text}`}
                   disabled={Boolean(ttsUnavailable)}
                 >
@@ -1063,7 +1063,7 @@ function ChatModule({ store }: { store: Store }) {
           <button
             className="icon-button"
             type="button"
-            onClick={() => startVoiceCapture("chat")}
+            onClick={() => startVoiceCapture("chat", store.projectId)}
             aria-label="Dictate message"
             disabled={Boolean(hermesUnavailable)}
           >
