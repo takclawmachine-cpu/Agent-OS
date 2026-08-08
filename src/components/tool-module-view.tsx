@@ -31,8 +31,8 @@ export function ToolModuleView({ module }: { module: ModuleDefinition }) {
         {module.slug === "todo" ? <TodoModule store={tools} /> : null}
         {module.slug === "skills" ? <SkillsModule store={tools} /> : null}
         {module.slug === "terminal" ? <TerminalModule store={tools} /> : null}
-        {module.slug === "api-explorer" ? <ApiExplorerModule /> : null}
-        {module.slug === "reports" ? <ReportModule /> : null}
+        {module.slug === "api-explorer" ? <ApiExplorerModule store={tools} /> : null}
+        {module.slug === "reports" ? <ReportModule store={tools} /> : null}
         {module.slug === "preview-app" ? <PreviewShortcut /> : null}
       </ResourceStateGate>
     </div>
@@ -106,7 +106,7 @@ function TerminalModule({ store }: { store: ToolStore }) {
   return <ToolGrid stats={[["Mode", online ? "Sandboxed" : "Offline"], ["Commands", "4 allowed"], ["Execution", "Server gated"]]}><ModuleCard title="Command Console" icon="terminal" eyebrow="Project sandbox" className="module-layout__full"><OfflineNotice source="Terminal backend" /><div className="terminal-shell"><div className="terminal-output">{store.state.terminal.map((line) => <code className={`terminal-line terminal-line--${line.kind}`} key={line.id}>{line.text}</code>)}{!store.state.terminal.length ? <EmptyState module="terminal" onAction={() => void execute("help")} /> : null}</div><form onSubmit={run}><span>$</span><input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="help" aria-label="Terminal command" autoComplete="off" disabled={!online} /><button disabled={!online}>Run</button></form></div></ModuleCard></ToolGrid>;
 }
 
-function ApiExplorerModule() {
+function ApiExplorerModule({ store }: { store: ToolStore }) {
   const { online } = useReliability();
   const allowedEndpoints = ["/api/agents", "/api/status", "/api/plans", "/api/reports"] as const;
   const [method, setMethod] = useState("GET");
@@ -114,18 +114,18 @@ function ApiExplorerModule() {
   const [payload, setPayload] = useState("{\n  \"status\": \"working\"\n}");
   const [response, setResponse] = useState<string | null>(null);
   const [payloadError, setPayloadError] = useState("");
-  const sendRequest = async () => { if (!online) return; try { if (!allowedEndpoints.some((allowed) => allowed === endpoint)) throw new Error("Only Agent OS API endpoints are allowed."); const parsed = JSON.parse(payload); setPayloadError(""); const started = performance.now(); const result = await fetch(`${endpoint}?projectId=agent-os`, { method, headers: method === "GET" ? undefined : { "content-type": "application/json" }, body: method === "GET" ? undefined : JSON.stringify(parsed) }); const body = await result.json(); setResponse(`${result.status} ${result.statusText} · ${Math.round(performance.now() - started)}ms\n${JSON.stringify(body, null, 2)}`); } catch (error) { if (error instanceof SyntaxError) setPayloadError("Enter valid JSON before sending the request."); else setResponse(`Request failed\n${error instanceof Error ? error.message : "Unknown error"}`); } };
+  const sendRequest = async () => { if (!online) return; try { if (!allowedEndpoints.some((allowed) => allowed === endpoint)) throw new Error("Only Agent OS API endpoints are allowed."); const parsed = JSON.parse(payload); setPayloadError(""); const started = performance.now(); const result = await fetch(`${endpoint}?projectId=${encodeURIComponent(store.projectId)}`, { method, headers: method === "GET" ? undefined : { "content-type": "application/json" }, body: method === "GET" ? undefined : JSON.stringify(parsed) }); const body = await result.json(); setResponse(`${result.status} ${result.statusText} · ${Math.round(performance.now() - started)}ms\n${JSON.stringify(body, null, 2)}`); } catch (error) { if (error instanceof SyntaxError) setPayloadError("Enter valid JSON before sending the request."); else setResponse(`Request failed\n${error instanceof Error ? error.message : "Unknown error"}`); } };
   const send = (event: FormEvent) => { event.preventDefault(); sendRequest(); };
   return <ToolGrid stats={[["Scope", "Internal API"], ["Mode", online ? "Live backend" : "Offline"], ["Auth", "Local session"]]}><ModuleCard title="Request Builder" icon="api" eyebrow="App endpoints only" className="module-layout__primary"><OfflineNotice source="API Explorer backend" /><form className="module-form" onSubmit={send}><label>Method<select value={method} onChange={(event) => setMethod(event.target.value)}><option>GET</option><option>POST</option><option>PATCH</option></select></label><label>Endpoint<select value={endpoint} onChange={(event) => setEndpoint(event.target.value)}>{allowedEndpoints.map((allowed) => <option key={allowed}>{allowed}</option>)}</select></label><label className={payloadError ? "field-error" : ""}>JSON payload<textarea value={payload} onChange={(event) => { setPayload(event.target.value); if (payloadError) setPayloadError(""); }} />{payloadError ? <FieldError source="api-explorer-payload">{payloadError}</FieldError> : null}</label><button className="primary-action" disabled={!online}>Send request <Icon name="send" size={16} /></button></form></ModuleCard><ModuleCard title="Response" icon="status" eyebrow="Live backend result">{response ? <pre className="api-response">{response}</pre> : <EmptyState module="api-explorer" onAction={() => void sendRequest()} />}</ModuleCard></ToolGrid>;
 }
 
-function ReportModule() {
+function ReportModule({ store }: { store: ToolStore }) {
   const operations = useOperationalModuleStore();
   const [range, setRange] = useState("Last 7 days");
   const [included, setIncluded] = useState(operations.state.digests.modules);
   const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
   const toggle = (name: string) => setIncluded((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
-  const generate = async () => { const result = await apiRequest<{ snapshot: Record<string, unknown> }>("/api/reports?projectId=agent-os", { method: "POST", body: JSON.stringify({ range, modules: included }) }); setPreview(result.snapshot); };
+  const generate = async () => { const result = await apiRequest<{ snapshot: Record<string, unknown> }>(`/api/reports?projectId=${encodeURIComponent(store.projectId)}`, { method: "POST", body: JSON.stringify({ range, modules: included }) }); setPreview(result.snapshot); };
   return <ToolGrid stats={[["Range", range], ["Included", String(included.length)], ["Trigger", "On demand"]]}><ModuleCard title="Report Configuration" icon="reports" eyebrow="Digest composition" className="module-layout__primary"><div className="module-form"><label>Date range<select value={range} onChange={(event) => setRange(event.target.value)}><option>Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option></select></label><div className="module-choice-grid">{["Agents", "Tokens", "GitHub", "Cron"].map((name) => <label key={name}><input type="checkbox" checked={included.includes(name)} onChange={() => toggle(name)} />{name}</label>)}</div><button className="primary-action" onClick={() => void generate()} disabled={!included.length}>Generate report <Icon name="reports" size={16} /></button></div></ModuleCard><ModuleCard title="Report Preview" icon="digests" eyebrow="Persisted point-in-time snapshot"><div className="report-preview">{preview ? <><header><small>{range.toUpperCase()}</small><strong>Agent OS Project Report</strong></header><pre className="api-response">{JSON.stringify(preview, null, 2)}</pre></> : <EmptyState module="reports" onAction={() => void generate()} />}</div></ModuleCard></ToolGrid>;
 }
 

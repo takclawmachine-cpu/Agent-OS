@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { apiRequest, canWriteApi, normalizeApiError, type ApiError } from "@/lib/api-client";
+import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { subscribeRealtimeEvents } from "@/lib/realtime";
-import type { ProviderStatus, ResourceMetadata, ResourceState } from "@/lib/resource-state";
+import { resolveResourceState, type ProviderStatus, type ResourceMetadata, type ResourceState } from "@/lib/resource-state";
 
 export type Status = "success" | "warning" | "error" | "neutral";
 
@@ -120,11 +120,12 @@ export function useOriginalModuleStore() {
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
     writeState(projectId, next);
-    if (canWriteApi()) {
-      void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "original", state: next }) })
-        .then(() => setPersistenceError(null))
-        .catch((error: unknown) => setPersistenceError(normalizeApiError(error, "/api/state")));
-    }
+    void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "original", state: next }) })
+      .then(() => setPersistenceError(null))
+      .catch((error: unknown) => {
+        if (JSON.stringify(parseState(window.localStorage.getItem(key))) === JSON.stringify(next)) writeState(projectId, current);
+        setPersistenceError(normalizeApiError(error, "/api/state"));
+      });
   }, [projectId]);
 
   useEffect(() => {
@@ -132,14 +133,11 @@ export function useOriginalModuleStore() {
     void apiRequest<{ original: OriginalModuleState }>(`/api/state?projectId=${projectId}`)
       .then((result) => {
         writeState(projectId, result.original);
-        setHydrationResult({
-          projectId,
-          state: {
-            status: "ready-populated",
+          setHydrationResult({ projectId, state: resolveResourceState({
             data: result.original,
+            isEmpty: (state) => !state.mail.messages.length && !state.cron.jobs.length && !state.plans.items.length && !state.agents.length && !state.apiStatus.length && !state.github.length && !state.chat.length && state.tokens.totalMillions === 0,
             metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
-          },
-        });
+          }) });
       })
       .catch((error: unknown) => {
         const failure = normalizeApiError(error, "/api/state");

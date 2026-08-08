@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
-import type { ResourceMetadata, ResourceState } from "@/lib/resource-state";
+import { resolveResourceState, type ResourceMetadata, type ResourceState } from "@/lib/resource-state";
 
 export type ToolModuleState = {
   version: number;
@@ -79,10 +79,13 @@ export function useToolModuleStore() {
   const hydrationState = hydrationResult.projectId === projectId
     ? hydrationResult.state
     : { status: "loading" as const, metadata: apiMetadata };
-  const trackPersistence = useCallback(<T,>(request: Promise<T>) => {
+  const trackPersistence = useCallback(<T,>(request: Promise<T>, rollback: () => void) => {
     void request
       .then(() => setPersistenceError(null))
-      .catch((error: unknown) => setPersistenceError(normalizeApiError(error)));
+      .catch((error: unknown) => {
+        rollback();
+        setPersistenceError(normalizeApiError(error));
+      });
   }, []);
   const update = useCallback((mutate: (current: ToolModuleState) => ToolModuleState) => {
     if (!projectId) return;
@@ -90,12 +93,15 @@ export function useToolModuleStore() {
     const current = parse(window.localStorage.getItem(storageKey));
     const next = mutate(current);
     write(projectId, next);
+    const rollback = () => {
+      if (JSON.stringify(parse(window.localStorage.getItem(storageKey))) === JSON.stringify(next)) write(projectId, current);
+    };
 
     current.todos.filter((todo) => !next.todos.some((candidate) => candidate.id === todo.id)).forEach((todo) => {
-      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "DELETE", body: JSON.stringify({ id: todo.id }) }));
+      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "DELETE", body: JSON.stringify({ id: todo.id }) }), rollback);
     });
     next.todos.filter((todo) => !current.todos.some((candidate) => candidate.id === todo.id)).forEach((todo) => {
-      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "POST", body: JSON.stringify(todo) }));
+      trackPersistence(apiRequest(`/api/todos?projectId=${projectId}`, { method: "POST", body: JSON.stringify(todo) }), rollback);
     });
     next.todos.filter((todo) => current.todos.some((candidate) => candidate.id === todo.id && (candidate.completed !== todo.completed || candidate.text !== todo.text))).forEach((todo) => {
       const previous = current.todos.find((candidate) => candidate.id === todo.id);
@@ -103,7 +109,7 @@ export function useToolModuleStore() {
         .then((saved) => {
           const latest = parse(window.localStorage.getItem(storageKey));
           write(projectId, { ...latest, todos: latest.todos.map((item) => item.id === todo.id ? { ...item, version: saved.version } : item) });
-        }));
+        }), rollback);
     });
     const agents = new Set([...Object.keys(current.skillAssignments), ...Object.keys(next.skillAssignments)]);
     agents.forEach((agentId) => {
@@ -111,7 +117,7 @@ export function useToolModuleStore() {
       const after = next.skillAssignments[agentId] ?? [];
       [...new Set([...before, ...after])].forEach((skill) => {
         if (before.includes(skill) === after.includes(skill) || !skillIds[skill]) return;
-        trackPersistence(apiRequest(`/api/skills?projectId=${projectId}`, { method: "POST", body: JSON.stringify({ agentId, skillId: skillIds[skill], assigned: after.includes(skill) }) }));
+        trackPersistence(apiRequest(`/api/skills?projectId=${projectId}`, { method: "POST", body: JSON.stringify({ agentId, skillId: skillIds[skill], assigned: after.includes(skill) }) }), rollback);
       });
     });
   }, [projectId, trackPersistence]);
@@ -137,11 +143,11 @@ export function useToolModuleStore() {
       write(projectId, next);
       setHydrationResult({
         projectId,
-        state: {
-          status: "ready-populated",
+        state: resolveResourceState({
           data: next,
+          isEmpty: (state) => !state.todos.length && !state.terminal.length && !Object.keys(state.skillAssignments).length,
           metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
-        },
+        }),
       });
     }).catch((error: unknown) => {
       const failure = normalizeApiError(error);

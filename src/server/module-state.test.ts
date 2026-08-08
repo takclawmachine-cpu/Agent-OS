@@ -13,6 +13,17 @@ beforeEach(() => {
 afterEach(() => database.close());
 
 describe("module state migration", () => {
+  it("returns client-compatible neutral state for a blank project", () => {
+    const state = readModuleState(database, "agent-os");
+
+    expect(state.original.version).toBe(5);
+    expect(state.operational).toMatchObject({
+      version: 4,
+      preferences: { desktopNotifications: false, digestEmail: false, compactDensity: false, liveUpdates: false },
+      billing: { monthlyCap: 0, alertThreshold: 0 },
+    });
+  });
+
   it("round-trips original and operational state without deleting agent relationships", () => {
     database.prepare("INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?)").run("agent-1", "agent-os", "Test Agent", "test-model", "idle", 0);
     database.prepare("INSERT INTO agent_skills VALUES ('agent-1', 'skill-git', ?)").run(new Date().toISOString());

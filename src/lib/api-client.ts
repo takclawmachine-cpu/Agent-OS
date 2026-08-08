@@ -1,12 +1,3 @@
-export function canWriteApi() {
-  try {
-    const session = JSON.parse(window.localStorage.getItem("agent-os-session") ?? "null") as { role?: string } | null;
-    return session?.role === "admin" || session?.role === "editor";
-  } catch {
-    return false;
-  }
-}
-
 type ApiRequestInit = RequestInit & { timeoutMs?: number };
 
 type ApiErrorCode =

@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
-import { apiRequest, canWriteApi, normalizeApiError, type ApiError } from "@/lib/api-client";
+import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { subscribeRealtimeEvents } from "@/lib/realtime";
-import type { ResourceMetadata, ResourceState } from "@/lib/resource-state";
+import { resolveResourceState, type ResourceMetadata, type ResourceState } from "@/lib/resource-state";
 
 export type OperationalModuleState = {
   version: number;
@@ -117,11 +117,12 @@ export function useOperationalModuleStore() {
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
     writeState(projectId, next);
-    if (canWriteApi()) {
-      void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "operational", state: next }) })
-        .then(() => setPersistenceError(null))
-        .catch((error: unknown) => setPersistenceError(normalizeApiError(error, "/api/state")));
-    }
+    void apiRequest(`/api/state?projectId=${projectId}`, { method: "PUT", body: JSON.stringify({ kind: "operational", state: next }) })
+      .then(() => setPersistenceError(null))
+      .catch((error: unknown) => {
+        if (JSON.stringify(parseState(window.localStorage.getItem(key))) === JSON.stringify(next)) writeState(projectId, current);
+        setPersistenceError(normalizeApiError(error, "/api/state"));
+      });
   }, [projectId]);
 
   useEffect(() => {
@@ -131,11 +132,11 @@ export function useOperationalModuleStore() {
         writeState(projectId, result.operational);
         setHydrationResult({
           projectId,
-          state: {
-            status: "ready-populated",
-            data: result.operational,
-            metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
-          },
+            state: resolveResourceState({
+              data: result.operational,
+              isEmpty: (state) => !state.notifications.length && !state.digests.history.length && !state.digests.modules.length && state.billing.monthlyCap === 0 && Object.values(state.preferences).every((enabled) => !enabled),
+              metadata: { ...apiMetadata, lastSucceededAt: new Date().toISOString() },
+            }),
         });
       })
       .catch((error: unknown) => {
