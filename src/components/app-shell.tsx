@@ -321,15 +321,9 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
       {dialogModule ? (
         <div className="module-overlay" role="presentation" onMouseDown={() => setModuleDialogSlug(null)}>
           <section className="module-dialog" role="dialog" aria-modal="true" aria-label={`${dialogModule.label} module`} onMouseDown={(event) => event.stopPropagation()}>
-            <header className="module-dialog__header">
-              <span>
-                <small>MODULE</small>
-                <strong>{dialogModule.label}</strong>
-              </span>
-              <button className="icon-button" type="button" onClick={() => setModuleDialogSlug(null)} aria-label="Close module dialog">
-                <Icon name="close" />
-              </button>
-            </header>
+            <button className="icon-button module-dialog__close" type="button" onClick={() => setModuleDialogSlug(null)} aria-label="Close module dialog">
+              <Icon name="close" />
+            </button>
             <div className="module-dialog__body">
               <ModuleView module={dialogModule} />
             </div>

@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import nodemailer from "nodemailer";
 
 import type { ProviderStatus } from "@/lib/resource-state";
+import { HttpError } from "@/server/policies";
 
 export type ProviderName = "hermes" | "openai" | "openrouter" | "github" | "groq" | "xai" | "smtp" | "whisper" | "tts";
 export type ProviderHealth = { provider: ProviderName; status: ProviderStatus; latencyMs: number | null };
@@ -35,12 +36,24 @@ export function parseHermesOutput(output: string) {
   return output.replace(/\r?\n\s*session_id:\s*[^\r\n]+\s*$/i, "").trim();
 }
 
+function toHermesUnavailableError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Hermes CLI failure.";
+  if (/not configured/i.test(message)) return new HttpError(503, "Hermes is not configured.");
+  if (/timed out|timeout/i.test(message)) return new HttpError(503, "Hermes timed out. Try again.");
+  return new HttpError(503, "Hermes CLI is unavailable.");
+}
+
 export async function completeHermesChat(message: string) {
-  const { stdout } = await runHermes([
-    "chat", "--safe-mode", "--quiet", "--max-turns", "1", "--source", "tool", "-q", message,
-  ], Number(process.env.HERMES_CLI_TIMEOUT_MS ?? 120000));
+  let stdout = "";
+  try {
+    ({ stdout } = await runHermes([
+      "chat", "--safe-mode", "--quiet", "--max-turns", "1", "--source", "tool", "-q", message,
+    ], Number(process.env.HERMES_CLI_TIMEOUT_MS ?? 120000)));
+  } catch (error) {
+    throw toHermesUnavailableError(error);
+  }
   const text = parseHermesOutput(stdout);
-  if (!text) throw new Error("Hermes returned no response content.");
+  if (!text) throw new HttpError(503, "Hermes returned no response content.");
   return { text, usage: { prompt_tokens: 0, completion_tokens: 0 } };
 }
 
