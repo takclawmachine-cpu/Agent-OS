@@ -1144,8 +1144,21 @@ kbd {
   transform: translate(-50%, -50%);
 }
 
-.hero-console::before { width: 58%; aspect-ratio: 1; opacity: 0.28; }
-.hero-console::after { width: 34%; aspect-ratio: 1; opacity: 0.46; }
+.hero-console::before {
+  width: 58%;
+  aspect-ratio: 1;
+  border-right-color: transparent;
+  opacity: 0.28;
+  animation: orbit-turn 48s linear infinite;
+}
+
+.hero-console::after {
+  width: 34%;
+  aspect-ratio: 1;
+  border-bottom-color: transparent;
+  opacity: 0.46;
+  animation: orbit-turn 32s linear infinite reverse;
+}
 
 .voice-stage {
   position: relative;
@@ -1159,6 +1172,7 @@ kbd {
 
 .voice-core {
   position: absolute;
+  z-index: 2;
   top: 50%;
   left: 50%;
   display: grid;
@@ -1207,17 +1221,48 @@ kbd {
 
 @keyframes halo-turn { to { transform: rotate(360deg); } }
 
+@keyframes orbit-turn {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 .voice-orbit {
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 50%;
   border: var(--stroke-thin) solid var(--border-subtle);
   border-radius: 50%;
+  pointer-events: none;
   transform: translate(-50%, -50%);
 }
 
-.voice-orbit--inner { width: var(--voice-orbit-inner); height: var(--voice-orbit-inner); }
-.voice-orbit--outer { width: var(--voice-orbit-outer); height: var(--voice-orbit-outer); border-style: dashed; animation: halo-turn 24s linear infinite reverse; }
+.voice-orbit::before {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 14px var(--voice-glow-active);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.voice-orbit--inner {
+  width: var(--voice-orbit-inner);
+  height: var(--voice-orbit-inner);
+  border-right-color: transparent;
+  animation: orbit-turn 14s linear infinite;
+}
+
+.voice-orbit--outer {
+  width: var(--voice-orbit-outer);
+  height: var(--voice-orbit-outer);
+  border-style: dashed;
+  animation: orbit-turn 26s linear infinite reverse;
+}
 
 .voice-wave {
   position: absolute;
