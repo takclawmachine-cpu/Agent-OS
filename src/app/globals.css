@@ -1166,7 +1166,6 @@ kbd {
   display: grid;
   min-width: 380px;
   min-height: 390px;
-  margin-left: calc(var(--shell-sidebar-width) / -2);
   place-items: center;
 }
 

@@ -22,6 +22,9 @@ export function NeuralField() {
     const field = new THREE.Group();
     scene.add(field);
 
+    const globe = new THREE.Group();
+    scene.add(globe);
+
     const particleCount = 680;
     const positions = new Float32Array(particleCount * 3);
     for (let index = 0; index < particleCount; index += 1) {
@@ -42,23 +45,35 @@ export function NeuralField() {
       new THREE.IcosahedronGeometry(2.3, 2),
       new THREE.MeshBasicMaterial({ color: 0xff3657, wireframe: true, transparent: true, opacity: 0.11 }),
     );
-    core.position.set(1.8, -0.7, -3);
-    field.add(core);
+    globe.add(core);
 
     const rings = [2.8, 3.5, 4.3].map((radius, index) => {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(radius, 0.012, 6, 100),
         new THREE.MeshBasicMaterial({ color: index === 1 ? 0xffffff : 0xff3657, transparent: true, opacity: 0.1 }),
       );
-      ring.position.copy(core.position);
       ring.rotation.set(index * 0.65, index * 0.4, index * 0.9);
-      field.add(ring);
+      globe.add(ring);
       return ring;
     });
 
     let frame = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const pointer = { x: 0, y: 0 };
+    const globeDepth = -3;
+
+    const anchorGlobe = () => {
+      const microphone = document.querySelector<HTMLElement>(".voice-core");
+      const centerX = microphone ? microphone.getBoundingClientRect().left + microphone.offsetWidth / 2 : window.innerWidth / 2;
+      const centerY = microphone ? microphone.getBoundingClientRect().top + microphone.offsetHeight / 2 : window.innerHeight / 2;
+      const projected = new THREE.Vector3(
+        centerX / window.innerWidth * 2 - 1,
+        -(centerY / window.innerHeight) * 2 + 1,
+        0.5,
+      ).unproject(camera);
+      const direction = projected.sub(camera.position).normalize();
+      const distance = (globeDepth - camera.position.z) / direction.z;
+      globe.position.copy(camera.position).add(direction.multiplyScalar(distance));
+    };
 
     const render = () => {
       field.rotation.y += reducedMotion ? 0 : 0.0007;
@@ -67,31 +82,23 @@ export function NeuralField() {
       rings.forEach((ring, index) => {
         ring.rotation.z += reducedMotion ? 0 : 0.0008 * (index + 1);
       });
-      camera.position.x += (pointer.x - camera.position.x) * 0.018;
-      camera.position.y += (-pointer.y - camera.position.y) * 0.018;
-      camera.lookAt(0, 0, 0);
+      anchorGlobe();
       renderer.render(scene, camera);
       if (!reducedMotion) frame = window.requestAnimationFrame(render);
     };
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
-      pointer.x = (event.clientX / window.innerWidth - 0.5) * 0.7;
-      pointer.y = (event.clientY / window.innerHeight - 0.5) * 0.45;
-    };
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      anchorGlobe();
     };
 
-    window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("resize", onResize);
     render();
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("resize", onResize);
       particles.dispose();
       particleMaterial.dispose();
