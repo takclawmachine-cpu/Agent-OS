@@ -19,7 +19,7 @@ Developers need one reliable local start path and clear instructions for connect
 
 - Document local setup from the repository root in `README.md` and the web package in `apps/web/README.md`.
 - Keep safe environment placeholders in the exact root file `example.env`; copy it to ignored `apps/web/.env.local` for local use.
-- Keep repository agent rules in root `AGENT.md` with the memory-bank-first workflow.
+- Keep generated Next.js agent rules in root `AGENTS.md` and the project workflow in `memory_bank/index.md`.
 - Define the Hermes topology and test envelope in `docs/hermes-local.md`.
 - Require a WebSocket-compatible bridge when Hermes exposes only HTTP, CLI, or stdio.
 - Keep authentication tokens server-side and prohibit secrets in `NEXT_PUBLIC_*` values.

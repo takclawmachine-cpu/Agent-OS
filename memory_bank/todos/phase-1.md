@@ -1,6 +1,6 @@
 # Phase 1 — UI/UX Foundation, Wiring, Design System
 
-Source: [Agent OS PRD v3.1, section 4](../../Agent-OS-PRD.md)
+Source: [Agent OS PRD v3.1, section 4](../references/Agent-OS-PRD.md)
 
 - [x] **1. Create Project Memory Bank**
   - [x] 1.1 Scaffold vault folders including `versions/`

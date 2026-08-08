@@ -1,6 +1,6 @@
 # Phase 3 — Security, Leak Checks, Audit & Logs Management
 
-Source: [Agent OS PRD v3.1, section 8](../../Agent-OS-PRD.md)
+Source: [Agent OS PRD v3.1, section 8](../references/Agent-OS-PRD.md)
 
 - [x] **1. Security Audit**
   - [x] 1.1–1.6 RBAC, session, rate limiting, CSRF, dependency scan, environment isolation

@@ -1,6 +1,6 @@
 # Phase 2 — Database, API Connections, Backend Logic & Testing
 
-Source: [Agent OS PRD v3.1, section 6](../../Agent-OS-PRD.md)
+Source: [Agent OS PRD v3.1, section 6](../references/Agent-OS-PRD.md)
 
 - [x] **1. Database Setup** — original + v3.0 entities, plus:
   - [x] 1.14 Skill catalog + Agent-Skill assignment table

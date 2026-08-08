@@ -11,8 +11,7 @@ This directory is the indexed project record for architecture, decisions, prompt
 - `prompts/` and `meetings/` - task prompts and planning records.
 - `versions/` - generated note snapshots.
 - `logs/` - development-only sanitized reliability event records.
-- `references/` - immutable copies of the six authoritative root artifacts.
-- `memory_bank/` - PRD-reserved vault content not covered by the folders above.
+- `references/` - canonical PRD, start prompt, and original interface mockup.
 - `docs/` - supporting operational guides.
 
-The authoritative PRD, start prompt, HTML mockup, and reference images remain at workspace root. Start each task with `index.md`; do not edit archived files in `references/` independently.
+The authoritative project sources live only in `references/`; the workspace root contains application and tool configuration. Start each task with `index.md`.

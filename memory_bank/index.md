@@ -28,3 +28,4 @@ Generated from indexed note frontmatter. Do not edit manually. Sorted by `update
 - [Phase 1](todos/phase-1.md)
 - [Phase 2](todos/phase-2.md)
 - [Phase 3](todos/phase-3.md)
+- [Phase 4](todos/phase-4.md)

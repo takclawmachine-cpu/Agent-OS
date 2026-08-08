@@ -2,7 +2,7 @@
 id: 0004-source-reference-archive
 type: decision
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 phase: 1
 related_tasks: ["1.1", "3.1"]
 status: active
@@ -29,6 +29,10 @@ All source/archive pairs matched by SHA-256 after copying on 2026-08-07.
 ## Consequences
 
 Agents can retrieve all original project inputs from the memory bank while avoiding silent drift between live and archived documents.
+
+## Superseded Layout
+
+On 2026-08-08, the duplicate root copies and nonessential screenshots were removed. The PRD, start prompt, and HTML mockup in `memory_bank/references/` are now the canonical project sources.
 
 ## See Also
 

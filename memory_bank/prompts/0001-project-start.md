@@ -26,4 +26,4 @@ Required outputs:
 
 ## Source
 
-The full governing prompt remains at [Agent-OS-Start-Prompt.md](../../Agent-OS-Start-Prompt.md). This note records the task instruction without replacing that source of truth.
+The full governing prompt remains at [Agent-OS-Start-Prompt.md](../references/Agent-OS-Start-Prompt.md). This note records the task instruction without replacing that source of truth.

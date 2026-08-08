@@ -23,11 +23,10 @@ To use the locally authenticated Hermes installation for AI Chat, set `HERMES_CL
 - `src/state/mocks/` - legacy path containing optimistic/offline client stores; SQLite is authoritative.
 - `server/` - companion realtime and scheduler processes.
 - `design-system/` - shared tokens and icon registry reference.
-- `memory_bank/` - indexed decisions, architecture, trackers, and source archive.
-- `Agent-OS-PRD.md` - authoritative product requirements.
-- `Agent-OS-Start-Prompt.md` - authoritative agent workflow.
-
-The six files under `memory_bank/references/` are intentional immutable snapshots of the authoritative root artifacts.
+- `memory_bank/` - indexed decisions, architecture, trackers, and project sources.
+- `memory_bank/references/Agent-OS-PRD.md` - authoritative product requirements.
+- `memory_bank/references/Agent-OS-Start-Prompt.md` - authoritative agent workflow.
+- `memory_bank/references/AI-OS-Dashboard-Mockup.html` - original interface reference.
 
 ## Validate
 
@@ -45,4 +44,4 @@ npm run security:secrets
 
 `npm install` configures the repository-managed pre-commit hook, which rejects high-confidence credentials in staged additions. GitHub Actions independently scans full Git history with Gitleaks and audits dependencies on pull requests and `main`. Trusted pull requests also receive a Vercel preview after the repository secrets in `.github/BRANCH_PROTECTION.md` are configured.
 
-See `memory_bank/docs/hermes-local.md` for the Hermes connection contract and `AGENT.md` for the indexed task workflow.
+See `memory_bank/docs/hermes-local.md` for the Hermes connection contract and `memory_bank/index.md` for the indexed task workflow.

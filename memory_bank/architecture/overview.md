@@ -74,5 +74,5 @@ The Project Switcher is a shell-level global control rather than a module. It re
 
 ## Source References
 
-- [Product Requirements Document](../../Agent-OS-PRD.md)
-- [Project Start Prompt](../../Agent-OS-Start-Prompt.md)
+- [Product Requirements Document](../references/Agent-OS-PRD.md)
+- [Project Start Prompt](../references/Agent-OS-Start-Prompt.md)

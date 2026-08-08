@@ -70,8 +70,8 @@ Goal: A module must never present demo, cached, or fallback content as live back
 
 - Completed task groups: 1
 - Pending task groups: 5
-- Completed subtasks: 26
-- Pending subtasks: 24
+- Completed subtasks: 27
+- Pending subtasks: 23
 - Modules requiring state-matrix verification: 27
 
 ## Seed Classification
