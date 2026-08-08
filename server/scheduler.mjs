@@ -1,10 +1,10 @@
+import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
 import { applyLogRetention, pruneBackupFiles, runRecoveryDrills } from "./maintenance.mjs";
 import { assertConfigured } from "./runtime-config.mjs";
-import { initializeDatabase } from "./database-bootstrap.mjs";
 
 const environmentPath = path.join(process.cwd(), ".env.local");
 if (fs.existsSync(environmentPath)) process.loadEnvFile?.(environmentPath);
@@ -14,7 +14,9 @@ const databasePath = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd
 const backupDirectory = process.env.AGENT_OS_BACKUP_PATH ?? path.join(process.cwd(), "backups");
 const runtimeEnvironment = process.env.AGENT_OS_ENVIRONMENT ?? "Local";
 fs.mkdirSync(backupDirectory, { recursive: true });
-const database = initializeDatabase(databasePath);
+const database = new Database(databasePath);
+database.pragma("foreign_keys = ON");
+database.exec("CREATE TABLE IF NOT EXISTS backup_drills (id TEXT PRIMARY KEY, backup_id TEXT REFERENCES backup_records(id) ON DELETE SET NULL, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, outcome TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);");
 
 async function runBackupJobs() {
   const jobs = database.prepare("SELECT cron_jobs.project_id FROM cron_jobs JOIN projects ON projects.id = cron_jobs.project_id WHERE cron_jobs.job_type = 'backup' AND cron_jobs.status = 'active' AND lower(projects.environment) = lower(?)").all(runtimeEnvironment);
