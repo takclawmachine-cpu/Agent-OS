@@ -50,7 +50,7 @@ export const initialOriginalModuleState: OriginalModuleState = {
     activeTab: "overview",
     items: [],
   },
-  preview: { state: "empty", url: "http://127.0.0.1:3000/dashboard" },
+  preview: { state: "empty", url: "" },
   agents: [],
   liveProgress: [],
   tokens: { totalMillions: 0, inputPercent: 0, outputPercent: 0, cost: 0 },

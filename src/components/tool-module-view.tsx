@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import { ApiNotConnectedState, ResourceStateGate } from "@/components/api-state";
 import { EmptyState } from "@/components/empty-state";
@@ -34,7 +33,6 @@ export function ToolModuleView({ module }: { module: ModuleDefinition }) {
         {module.slug === "terminal" ? <TerminalModule store={tools} /> : null}
         {module.slug === "api-explorer" ? <ApiExplorerModule store={tools} /> : null}
         {module.slug === "reports" ? <ReportModule store={tools} /> : null}
-        {module.slug === "preview-app" ? <PreviewShortcut /> : null}
       </ResourceStateGate>
     </div>
   );
@@ -128,19 +126,6 @@ function ReportModule({ store }: { store: ToolStore }) {
   const toggle = (name: string) => setIncluded((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
   const generate = async () => { const result = await apiRequest<{ snapshot: Record<string, unknown> }>(`/api/reports?projectId=${encodeURIComponent(store.projectId)}`, { method: "POST", body: JSON.stringify({ range, modules: included }) }); setPreview(result.snapshot); };
   return <ToolGrid><ModuleCard title="Report Configuration" icon="reports" eyebrow="Digest composition" className="module-layout__primary"><div className="module-form"><label>Date range<select value={range} onChange={(event) => setRange(event.target.value)}><option>Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option></select></label><div className="module-choice-grid">{["Agents", "Tokens", "GitHub", "Cron"].map((name) => <label key={name}><input type="checkbox" checked={included.includes(name)} onChange={() => toggle(name)} />{name}</label>)}</div><button className="primary-action" onClick={() => void generate()} disabled={!included.length}>Generate report <Icon name="reports" size={16} /></button></div></ModuleCard><ModuleCard title="Report Preview" icon="digests" eyebrow="Persisted point-in-time snapshot"><div className="report-preview">{preview ? <><header><small>{range.toUpperCase()}</small><strong>Agent OS Project Report</strong></header><pre className="api-response">{JSON.stringify(preview, null, 2)}</pre></> : <EmptyState module="reports" onAction={() => void generate()} />}</div></ModuleCard></ToolGrid>;
-}
-
-function PreviewShortcut() {
-  const router = useRouter();
-  const original = useOriginalModuleStore();
-  const redirected = useRef(false);
-  useEffect(() => {
-    if (redirected.current) return;
-    redirected.current = true;
-    original.update((state) => ({ ...state, preview: { ...state.preview, state: "populated" } }));
-    router.replace("/browser-preview");
-  }, [original, router]);
-  return <ToolGrid stats={[["Target", "Browser Preview"], ["Scope", original.projectId], ["State", "Preloading"]]}><ModuleCard title="Opening Preview" icon="preview" eyebrow="Shared module shortcut" className="module-layout__full"><div className="inline-empty"><span className="spinner" /><strong>Loading project preview</strong><span>Reusing the Browser Preview module state.</span></div></ModuleCard></ToolGrid>;
 }
 
 function ToolGrid({ stats = [], children }: { stats?: Array<[string, string]>; children: React.ReactNode }) {

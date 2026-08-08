@@ -28,7 +28,6 @@ export function VoiceCore({ projectId, target = "dashboard" }: { projectId: stri
         {Array.from({ length: 19 }, (_, index) => <span key={index} />)}
       </div>
       <strong className="voice-label">{label}</strong>
-      <span className="voice-hint">Voice channel / Hermes local</span>
     </div>
   );
 }

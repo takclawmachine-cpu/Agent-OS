@@ -88,3 +88,7 @@ Opening an existing database runs the idempotent legacy cleanup during initializ
 ## Release Decision
 
 Phase 4 remains in progress. The latest 2026-08-08 checkpoint passes lint, 73 tests, secret scanning, and an optimized build. Production state modules now live outside the former `mocks` namespace, Dashboard and Status distinguish unavailable provider states, and the shared resolver separates filtered-empty from true-empty data. Login is configuration-gated; generated password hashes use a dotenv-safe format across Next.js, Node, Docker, and VPS environments while legacy injected hashes remain verifiable. Demo credentials, automatic records, simulated realtime events, and hardcoded project fallbacks are removed. Persisted Projects, Vault, Search, Environments, and Skills are wired. Multi-project assistant panels provide isolated contextual chat, confirmed project opening, and project-scoped voice. Exact mutation retry, stale cache, remaining provider contracts, multi-project realtime, the complete module-state matrix, Playwright coverage, and Docker runtime verification remain pending.
+
+UI update: Sidebar navigation has been removed from the shell. Dashboard module actions are now split into left and right rails around the mic surface, and module menu actions open content in an in-shell dialog instead of full-page route transitions.
+
+Preview update: Removed the duplicate Preview App tool module. Browser Preview is now the single preview surface and no longer seeds a default dashboard URL; it only loads URLs explicitly entered by the user.

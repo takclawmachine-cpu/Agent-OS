@@ -12,7 +12,7 @@ export const moduleEmptyStates = {
   mail: { icon: "mail", title: "Inbox is empty", description: "Compose a message to start the local delivery log.", actionLabel: "Compose mail" },
   cron: { icon: "clock", title: "No scheduled jobs", description: "Add a recurring job for the active project.", actionLabel: "Add a job" },
   plans: { icon: "plans", title: "No plans yet", description: "Create a plan to define the next project outcome.", actionLabel: "Create a plan" },
-  "browser-preview": { icon: "browser", title: "No preview loaded", description: "Load the active project's configured local URL.", actionLabel: "Load preview" },
+  "browser-preview": { icon: "browser", title: "No preview loaded", description: "Enter a URL and choose Load preview.", actionLabel: "Load preview" },
   agents: { icon: "agents", title: "No agents configured", description: "Add an agent to begin assigning project work.", actionLabel: "Add an agent" },
   "agent-status": { icon: "activity", title: "No active work", description: "Assign a task to an agent to begin live tracking.", actionLabel: "View agents" },
   tokens: { icon: "tokens", title: "No token usage", description: "Start a project conversation to record model usage.", actionLabel: "Open AI Chat" },
@@ -34,5 +34,4 @@ export const moduleEmptyStates = {
   terminal: { icon: "terminal", title: "No commands run", description: "Run an allowed project command to start this session.", actionLabel: "Run help" },
   "api-explorer": { icon: "api", title: "No response yet", description: "Send a backend request to inspect its response.", actionLabel: "Send request" },
   reports: { icon: "reports", title: "No report preview", description: "Generate an on-demand preview from selected modules.", actionLabel: "Generate preview" },
-  "preview-app": { icon: "preview", title: "No preview configured", description: "Configure a project URL before opening Preview App.", actionLabel: "Open Browser Preview" },
 } satisfies Record<ModuleSlug, EmptyStateContent>;

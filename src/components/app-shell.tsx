@@ -1,18 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icon";
+import { ModuleView } from "@/components/module-view";
 import { NeuralField } from "@/components/neural-field";
 import { useProjectPanels } from "@/components/project-panel-provider";
 import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { notifyAuthChanged } from "@/lib/auth";
-import { moduleGroups, modules } from "@/lib/modules";
-import { startVoiceCapture, useVoiceState } from "@/lib/voice";
+import { getModule, modules } from "@/lib/modules";
+import { useVoiceState } from "@/lib/voice";
 import { useOperationalModuleStore } from "@/state/operational-modules";
 import { useOriginalModuleStore } from "@/state/original-modules";
 
@@ -20,6 +20,7 @@ type Project = { id: string; name: string; environment: string };
 
 const projectEvent = "agent-os-project-change";
 const themeEvent = "agent-os-theme-change";
+const openModuleDialogEvent = "agent-os-open-module-dialog";
 
 function subscribe(eventName: string, callback: () => void) {
   window.addEventListener(eventName, callback);
@@ -54,7 +55,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function WorkspaceShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const router = useRouter();
   const operations = useOperationalModuleStore();
   const original = useOriginalModuleStore();
@@ -66,7 +66,8 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [projectsError, setProjectsError] = useState<ApiError | null>(null);
   const [projectOpen, setProjectOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [moduleDialogSlug, setModuleDialogSlug] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   const activeProjectId = useSyncExternalStore(
@@ -88,11 +89,12 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
   const activeProjectName = activeProject?.name ?? "No workspace";
   const unreadNotifications = operations.state.notifications.filter((notification) => !notification.read).length;
+  const recentNotifications = operations.state.notifications.slice(0, 7);
   const recentProjects = parseRecentProjects(recentProjectIds, projects.map((project) => project.id));
   const projectOrder = [...recentProjects, ...projects.map((project) => project.id).filter((id) => !recentProjects.includes(id))];
   const orderedProjects = projectOrder.map((id) => projects.find((project) => project.id === id)).filter(Boolean) as Project[];
-  const activeSlug = pathname.split("/")[1] || "dashboard";
   const searchResults = modules.filter((module) => `${module.label} ${module.description}`.toLowerCase().includes(query.toLowerCase()));
+  const dialogModule = moduleDialogSlug ? getModule(moduleDialogSlug) : undefined;
   const apiUnavailable = projectsError !== null || operations.hydrationState.status === "error" || original.hydrationState.status === "error";
   const providerUnavailable = original.state.apiStatus.some((provider) => ["disconnected", "error", "unreachable"].includes(provider.status));
   const shellHealth = !online
@@ -145,12 +147,31 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
       if (event.key === "Escape") {
         setCommandOpen(false);
         setProjectOpen(false);
-        setNavigationOpen(false);
+        setNotificationOpen(false);
+        setModuleDialogSlug(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    const onOpenModuleDialog = (event: Event) => {
+      const detail = (event as CustomEvent<{ slug?: string }>).detail;
+      if (!detail?.slug || !getModule(detail.slug)) return;
+      setModuleDialogSlug(detail.slug);
+      setCommandOpen(false);
+    };
+    window.addEventListener(openModuleDialogEvent, onOpenModuleDialog);
+    return () => window.removeEventListener(openModuleDialogEvent, onOpenModuleDialog);
+  }, []);
+
+  const openModuleDialog = (slug: string) => {
+    if (!getModule(slug)) return;
+    setModuleDialogSlug(slug);
+    setNotificationOpen(false);
+    setCommandOpen(false);
+  };
 
   const selectProject = (projectId: string) => {
     const history = [projectId, ...recentProjects.filter((id) => id !== projectId)];
@@ -181,9 +202,6 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
       <NeuralField />
       <header className="topbar">
         <div className="topbar__brand">
-          <button className="icon-button navigation-toggle" type="button" onClick={() => setNavigationOpen((open) => !open)} aria-label={navigationOpen ? "Collapse navigation" : "Expand navigation"} aria-expanded={navigationOpen}>
-            <Icon name={navigationOpen ? "close" : "menu"} />
-          </button>
           <span className="brand-mark"><span /></span>
           <span><strong>AGENT OS</strong></span>
         </div>
@@ -218,44 +236,48 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
         <div className="topbar__actions">
           <span className={`connection-pill ${shellHealth.unavailable ? "is-offline" : ""}`.trim()}><span className="live-dot" />{shellHealth.label}</span>
-          <button className="icon-button" type="button" onClick={() => startVoiceCapture("global", activeProjectId)} aria-label={`Voice input: ${online ? voiceState : "offline"}`} disabled={!online || !activeProjectId || voiceState !== "idle"}>
-            <Icon name="microphone" />
-          </button>
           <button className="icon-button" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}>
             <Icon name={theme === "light" ? "moon" : "sun"} />
           </button>
-          <Link className="icon-button notification-button" href="/notifications" aria-label={`${unreadNotifications} unread notifications`}>
-            <Icon name="notifications" />
-            {unreadNotifications ? <span className="badge-dot">{unreadNotifications}</span> : null}
-          </Link>
+          <div className="notification-wrapper">
+            {notificationOpen ? <button className="profile-menu__backdrop" type="button" onClick={() => setNotificationOpen(false)} aria-label="Close notifications menu" /> : null}
+            <button className="icon-button notification-button" type="button" onClick={() => setNotificationOpen((open) => !open)} aria-expanded={notificationOpen} aria-haspopup="dialog" aria-label={`${unreadNotifications} unread notifications`}>
+              <Icon name="notifications" />
+              {unreadNotifications ? <span className="badge-dot">{unreadNotifications}</span> : null}
+            </button>
+            {notificationOpen ? (
+              <section className="notification-menu" role="dialog" aria-label="Recent notifications">
+                <header>
+                  <span>
+                    <strong>Recent Notifications</strong>
+                    <small>Latest {recentNotifications.length} entries</small>
+                  </span>
+                </header>
+                <div className="notification-menu__list">
+                  {recentNotifications.length ? recentNotifications.map((notice) => (
+                    <button key={notice.id} type="button" onClick={() => openModuleDialog("notifications")}>
+                      <span className={`notice-mark notice-mark--${notice.severity}`} />
+                      <span>
+                        <strong>{notice.title}</strong>
+                        <small>{notice.detail}</small>
+                      </span>
+                      <time>{notice.time}</time>
+                    </button>
+                  )) : <p>No recent notifications.</p>}
+                </div>
+                <footer>
+                  <button className="secondary-action" type="button" onClick={() => openModuleDialog("notifications")}>View all notifications</button>
+                </footer>
+              </section>
+            ) : null}
+          </div>
           <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out" title="Sign out">
             <Icon name="logout" size={16} />
           </button>
         </div>
       </header>
 
-      <aside className={`sidebar ${navigationOpen ? "sidebar--open" : ""}`}>
-        <nav aria-label="Agent OS modules">
-          {moduleGroups.map((group) => (
-            <section key={group.label}>
-              <span className="sidebar__label">{group.label}</span>
-              {group.modules.map((module) => (
-                <Link key={module.slug} href={`/${module.slug}`} className={activeSlug === module.slug ? "is-active" : ""} onClick={() => setNavigationOpen(false)} aria-label={module.label} title={!navigationOpen ? module.label : undefined}>
-                  <Icon name={module.icon} size={17} />
-                  <span>{module.label}</span>
-                  {module.slug === "agent-status" ? <span className="nav-live" /> : null}
-                </Link>
-              ))}
-            </section>
-          ))}
-        </nav>
-        <footer>
-          <span className="sidebar__signal"><span className="live-dot" />{shellHealth.label}</span>
-          <small>{operations.state.environment} / Phase 4</small>
-        </footer>
-      </aside>
-
-      <main className={`shell-main ${navigationOpen ? "shell-main--sidebar-open" : ""}`} data-project={activeProject?.id ?? ""} data-environment={operations.state.environment}>{children}</main>
+      <main className="shell-main" data-project={activeProject?.id ?? ""} data-environment={operations.state.environment}>{children}</main>
 
       {commandOpen ? (
         <div className="command-overlay" role="presentation" onMouseDown={() => setCommandOpen(false)}>
@@ -267,13 +289,32 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="command-results">
               {searchResults.map((module) => (
-                <Link key={module.slug} href={`/${module.slug}`} onClick={() => { setCommandOpen(false); setQuery(""); }}>
+                <button key={module.slug} type="button" onClick={() => { openModuleDialog(module.slug); setQuery(""); }}>
                   <span className="module-card__icon"><Icon name={module.icon} /></span>
                   <span><strong>{module.label}</strong><small>{module.description}</small></span>
                   <kbd>↵</kbd>
-                </Link>
+                </button>
               ))}
               {!searchResults.length ? <p>No matching module.</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {dialogModule ? (
+        <div className="module-overlay" role="presentation" onMouseDown={() => setModuleDialogSlug(null)}>
+          <section className="module-dialog" role="dialog" aria-modal="true" aria-label={`${dialogModule.label} module`} onMouseDown={(event) => event.stopPropagation()}>
+            <header className="module-dialog__header">
+              <span>
+                <small>MODULE</small>
+                <strong>{dialogModule.label}</strong>
+              </span>
+              <button className="icon-button" type="button" onClick={() => setModuleDialogSlug(null)} aria-label="Close module dialog">
+                <Icon name="close" />
+              </button>
+            </header>
+            <div className="module-dialog__body">
+              <ModuleView module={dialogModule} />
             </div>
           </section>
         </div>

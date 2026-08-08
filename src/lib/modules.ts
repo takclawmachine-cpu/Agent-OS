@@ -38,7 +38,6 @@ export const moduleGroups = [
       { slug: "terminal", label: "Terminal", icon: "terminal", description: "Sandboxed project command console with audited execution." },
       { slug: "api-explorer", label: "API Explorer", icon: "api", description: "Build and inspect live internal API requests." },
       { slug: "reports", label: "Generate Report", icon: "reports", description: "Compose on-demand project summaries." },
-      { slug: "preview-app", label: "Preview App", icon: "preview", description: "Open the current project's configured preview." },
     ],
   },
 ] as const;
@@ -50,7 +49,7 @@ export const modules = moduleGroups.flatMap<ModuleDefinition>(
 
 const originalModuleSlugs = new Set(["dashboard", "mail", "cron", "plans", "browser-preview", "agents", "agent-status", "tokens", "api-status", "github", "chat", "vault"]);
 const operationalModuleSlugs = new Set(["notifications", "search", "settings", "status", "billing", "digests", "environments"]);
-const toolModuleSlugs = new Set(["voice", "todo", "skills", "terminal", "api-explorer", "reports", "preview-app"]);
+const toolModuleSlugs = new Set(["voice", "todo", "skills", "terminal", "api-explorer", "reports"]);
 
 export type ModuleSlug = ModuleDefinition["slug"];
 export type IconName = ModuleDefinition["icon"] | "folder" | "menu" | "close" | "chevron" | "sun" | "moon" | "microphone" | "lock" | "eye" | "arrow" | "logout" | "check" | "trash" | "plus" | "send" | "refresh" | "copy" | "play";

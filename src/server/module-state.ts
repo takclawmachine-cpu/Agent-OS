@@ -25,7 +25,7 @@ export function readModuleState(database: AgentDatabase, projectId: string) {
       mail: { sent: Number(database.prepare("SELECT COUNT(*) FROM mail_logs WHERE project_id = ? AND status = 'sent'").pluck().get(projectId)), failed: Number(database.prepare("SELECT COUNT(*) FROM mail_logs WHERE project_id = ? AND status = 'failed'").pluck().get(projectId)), messages: rows(database, "SELECT id, recipient, subject, substr(created_at, 12, 5) AS time, status FROM mail_logs WHERE project_id = ? ORDER BY created_at DESC", projectId) },
       cron: { successfulRuns: 0, jobs: rows(database, "SELECT id, name, schedule, COALESCE(next_run, '') AS nextRun, status FROM cron_jobs WHERE project_id = ?", projectId) },
       plans: { activeTab: "overview", items: rows(database, "SELECT id, name, owner, status FROM plans WHERE project_id = ?", projectId) },
-      preview: { state: preview?.state ?? "empty", url: preview?.url ?? "http://127.0.0.1:3000/dashboard" },
+      preview: { state: preview?.state ?? "empty", url: preview?.url ?? "" },
       agents,
       liveProgress: agents.filter((agent) => agent.status === "working").map((agent) => ({ id: `work-${agent.id}`, agent: agent.name, task: "Live backend work", percent: Math.min(99, Number(agent.completed) * 3) })),
       tokens: { totalMillions: totalTokens / 1_000_000, inputPercent: totalTokens ? Math.round(inputTokens / totalTokens * 100) : 0, outputPercent: totalTokens ? Math.round((totalTokens - inputTokens) / totalTokens * 100) : 0, cost: tokenRows.reduce((sum, usage) => sum + Number(usage.cost), 0) },

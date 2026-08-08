@@ -2,7 +2,7 @@
 id: 0005-app-shell-navigation
 type: decision
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 phase: 1
 related_tasks: ["3.1", "3.2", "3.3", "3.4", "3.5"]
 status: active
@@ -39,6 +39,12 @@ Phase 1 requires a responsive shell that exposes all 27 modules, global command 
 ## Consequences
 
 Module-specific five-state behavior can now be implemented sequentially without rebuilding global navigation or project scope.
+
+## 2026-08-08 Update
+
+- Removed sidebar navigation from the workspace shell.
+- Added split module action rails on both sides of the dashboard microphone surface.
+- Module actions and command-palette module selections now open module content inside an in-shell dialog instead of full-page route navigation.
 
 ## See Also
 

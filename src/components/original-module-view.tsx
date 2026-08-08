@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Children, FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 
 import { ApiNotConnectedState, ResourceStateGate } from "@/components/api-state";
@@ -11,7 +10,7 @@ import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useUndo, type UndoHandler } from "@/components/undo-provider";
 import { VoiceCore } from "@/components/voice-core";
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
-import type { ModuleDefinition } from "@/lib/modules";
+import { modules, type ModuleDefinition } from "@/lib/modules";
 import type { ProviderStatus } from "@/lib/resource-state";
 import {
   speakText,
@@ -27,6 +26,11 @@ type VaultNote = { path: string; version: number; content: string; createdAt: st
 type ApiProvider = OriginalModuleState["apiStatus"][number];
 
 const subscribeToOrigin = () => () => undefined;
+const openModuleDialogEvent = "agent-os-open-module-dialog";
+
+function openModuleDialog(slug: string) {
+  window.dispatchEvent(new CustomEvent(openModuleDialogEvent, { detail: { slug } }));
+}
 
 function providerDisconnectedStatus(providers: ApiProvider[]): "unconfigured" | "unreachable" | "error" {
   if (!providers.length || providers.every((provider) => provider.status === "unconfigured")) return "unconfigured";
@@ -122,6 +126,10 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
   const openPlans = state.plans.items.filter(
     (plan) => plan.status !== "approved",
   ).length;
+  const dashboardMenus = modules.filter((module) => module.slug !== "dashboard" && module.slug !== "notifications");
+  const splitIndex = Math.ceil(dashboardMenus.length / 2);
+  const leftMenus = dashboardMenus.slice(0, splitIndex);
+  const rightMenus = dashboardMenus.slice(splitIndex);
 
   return (
     <div className="dashboard-view">
@@ -136,7 +144,23 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
         className="hero-console"
         aria-label="Hermes voice command center"
       >
+        <nav className="hero-menu hero-menu--left" aria-label="Module actions left">
+          {leftMenus.map((module) => (
+            <button key={module.slug} type="button" className="hero-menu__button" onClick={() => openModuleDialog(module.slug)}>
+              <span className="hero-menu__icon"><Icon name={module.icon} size={14} /></span>
+              <span>{module.label}</span>
+            </button>
+          ))}
+        </nav>
         <VoiceCore projectId={projectId} />
+        <nav className="hero-menu hero-menu--right" aria-label="Module actions right">
+          {rightMenus.map((module) => (
+            <button key={module.slug} type="button" className="hero-menu__button" onClick={() => openModuleDialog(module.slug)}>
+              <span className="hero-menu__icon"><Icon name={module.icon} size={14} /></span>
+              <span>{module.label}</span>
+            </button>
+          ))}
+        </nav>
       </section>
       <section className="telemetry-row" aria-label="Project telemetry">
         <div className="telemetry">
@@ -173,45 +197,6 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
           ) : (
             <EmptyState module="dashboard" actionHref="/plans" />
           )}
-        </ModuleCard>
-        <ModuleCard
-          title="Project Pulse"
-          icon="dashboard"
-          eyebrow="Derived from module state"
-        >
-          <div className="metric-grid">
-            <Metric
-              value={String(state.mail.messages.length)}
-              label="Recent mail"
-            />
-            <Metric value={String(activeJobs)} label="Active jobs" />
-            <Metric value={String(state.github.length)} label="Repositories" />
-            <Metric value={String(openPlans)} label="Open plans" />
-          </div>
-        </ModuleCard>
-        <ModuleCard
-          title="Quick Actions"
-          icon="terminal"
-          eyebrow="Project tools"
-        >
-          <div className="quick-actions">
-            <Link href="/mail">
-              <Icon name="mail" />
-              <span>Compose</span>
-            </Link>
-            <Link href="/plans">
-              <Icon name="plans" />
-              <span>New plan</span>
-            </Link>
-            <Link href="/chat">
-              <Icon name="chat" />
-              <span>Ask Hermes</span>
-            </Link>
-            <Link href="/browser-preview">
-              <Icon name="preview" />
-              <span>Preview</span>
-            </Link>
-          </div>
         </ModuleCard>
         <ModuleCard
           title="Provider Health"
@@ -558,6 +543,10 @@ function PlansModule({ store }: { store: Store }) {
 
 function PreviewModule({ store }: { store: Store }) {
   const [url, setUrl] = useState(store.state.preview.url);
+  const hasInputUrl = url.trim().length > 0;
+  const hasPreviewUrl = store.state.preview.url.trim().length > 0;
+  const canRenderFrame = (store.state.preview.state === "loading" || store.state.preview.state === "populated") && hasPreviewUrl;
+  const loadDisabled = !hasInputUrl;
   const trustedPreview = useSyncExternalStore(subscribeToOrigin, () => {
     try {
       return new URL(store.state.preview.url, window.location.href).origin === window.location.origin;
@@ -566,9 +555,20 @@ function PreviewModule({ store }: { store: Store }) {
     }
   }, () => false);
   const load = () => {
+    const nextUrl = url.trim();
+    if (!nextUrl) return;
+    try {
+      new URL(nextUrl);
+    } catch {
+      store.update((current) => ({
+        ...current,
+        preview: { ...current.preview, state: "error" },
+      }));
+      return;
+    }
     store.update((current) => ({
       ...current,
-      preview: { ...current.preview, state: "loading", url },
+      preview: { ...current.preview, state: "loading", url: nextUrl },
     }));
   };
   return (
@@ -583,7 +583,7 @@ function PreviewModule({ store }: { store: Store }) {
         <div
           className={`preview-surface preview-surface--${store.state.preview.state}`}
         >
-          {store.state.preview.state === "empty" ? (
+          {(store.state.preview.state === "empty" || !hasPreviewUrl) ? (
             <EmptyState module="browser-preview" onAction={load} />
           ) : null}
           {store.state.preview.state === "loading" ? (
@@ -599,7 +599,7 @@ function PreviewModule({ store }: { store: Store }) {
               <p>The configured application did not allow this preview. Check the URL and frame policy, then retry.</p>
             </>
           ) : null}
-          {store.state.preview.state === "loading" || store.state.preview.state === "populated" ? (
+          {canRenderFrame ? (
             <iframe className={store.state.preview.state === "loading" ? "is-loading" : ""} title="Project application preview" src={store.state.preview.url} sandbox={trustedPreview ? undefined : "allow-forms allow-scripts"} onLoad={() => store.update((current) => ({ ...current, preview: { ...current.preview, state: "populated" } }))} onError={() => store.update((current) => ({ ...current, preview: { ...current.preview, state: "error" } }))} />
           ) : null}
         </div>
@@ -611,9 +611,10 @@ function PreviewModule({ store }: { store: Store }) {
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://example.com"
             />
           </label>
-          <button className="primary-action" onClick={load}>
+          <button className="primary-action" onClick={load} disabled={loadDisabled}>
             {store.state.preview.state === "error" ? "Retry" : "Load preview"}{" "}
             <Icon name="play" size={16} />
           </button>
