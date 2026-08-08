@@ -70,7 +70,7 @@ function startBackendTransport() {
     pollTimer = window.setInterval(() => void poll(), POLL_INTERVAL);
   };
   const subscribe = () => {
-    if (projectId()) socket?.send(JSON.stringify({ type: "subscribe", projectId: projectId(), channels, cursor: getRealtimeStatus().lastSequence }));
+    if (projectId() && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "subscribe", projectId: projectId(), channels, cursor: getRealtimeStatus().lastSequence }));
   };
   const connect = () => {
     if (disposed || window.localStorage.getItem(SOCKET_UNAVAILABLE_KEY) === "true") { startPolling(); return; }

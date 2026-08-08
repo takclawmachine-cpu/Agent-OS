@@ -129,10 +129,7 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
           <small>PROJECT / ACTIVE SCOPE</small>
           <h1>Command Center</h1>
         </span>
-        <span className="system-time">
-          <span className="live-dot" />
-          All systems nominal
-        </span>
+
       </header>
       <section
         className="hero-console"

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-import { useAuthenticatedSession } from "@/components/auth-gate";
 import { Icon } from "@/components/icon";
 import { NeuralField } from "@/components/neural-field";
 import { useProjectPanels } from "@/components/project-panel-provider";
@@ -57,7 +56,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const session = useAuthenticatedSession();
   const operations = useOperationalModuleStore();
   const original = useOriginalModuleStore();
   const realtime = useRealtimeStatus();
@@ -187,7 +185,7 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
             <Icon name={navigationOpen ? "close" : "menu"} />
           </button>
           <span className="brand-mark"><span /></span>
-          <span><strong>AGENT OS</strong><small>LOCAL COMMAND</small></span>
+          <span><strong>AGENT OS</strong></span>
         </div>
 
         {projects.length && activeProject ? (
@@ -230,8 +228,8 @@ function WorkspaceShell({ children }: { children: React.ReactNode }) {
             <Icon name="notifications" />
             {unreadNotifications ? <span className="badge-dot">{unreadNotifications}</span> : null}
           </Link>
-          <button className="profile" type="button" onClick={signOut} title="Sign out">
-            <span>{session?.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "OS"}</span><span><strong>{session?.name ?? "Owner"}</strong><small>{session?.role ?? "admin"}</small></span><Icon name="logout" size={15} />
+          <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out" title="Sign out">
+            <Icon name="logout" size={16} />
           </button>
         </div>
       </header>
