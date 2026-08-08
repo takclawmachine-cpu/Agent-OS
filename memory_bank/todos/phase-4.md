@@ -40,7 +40,7 @@ Goal: A module must never present demo, cached, or fallback content as live back
   - [ ] 4.4 Convert Agent Working Status cards for realtime transport availability
   - [ ] 4.5 Convert Tokens and Billing cards for hosted-model provider availability
   - [ ] 4.6 Convert GitHub repository cards for API and webhook availability
-  - [x] 4.7 Convert AI Chat cards for Hermes/provider availability
+  - [x] 4.7 Convert AI Chat cards for Hermes/provider availability, persist conversation history, and expose collapsible recent chats
   - [ ] 4.8 Convert Voice cards independently for microphone permission, Whisper STT, and TTS availability
   - [ ] 4.9 Disable dependent actions while disconnected and expose the correct configure, retry, or reconnect action
 

@@ -83,6 +83,7 @@ function ModuleHeading({
   live?: boolean;
 }) {
   const realtime = useRealtimeStatus();
+  const compact = ["browser-preview", "mail", "agent-status", "chat", "vault"].includes(module.slug);
   const transportLabel = realtime.mode === "websocket" ? "WebSocket live" : realtime.mode === "polling" ? "Polling live" : "Live offline";
   return (
     <header className="page-heading">
@@ -90,9 +91,9 @@ function ModuleHeading({
         <Icon name={module.icon} size={24} />
       </span>
       <span>
-        <small>PROJECT-SCOPED MODULE</small>
+        {!compact ? <small>PROJECT-SCOPED MODULE</small> : null}
         <h1>{module.label}</h1>
-        <p>{module.description}</p>
+        {!compact ? <p>{module.description}</p> : null}
       </span>
       {live ? (
         <span className="live-tag">
@@ -125,39 +126,39 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
   return (
     <div className="dashboard-view">
       <header className="page-heading dashboard-heading">
-        <span>
-          <small>PROJECT / ACTIVE SCOPE</small>
-          <h1>Command Center</h1>
-        </span>
-
+        <h1 aria-label="C.O.M.M.A.N.D C.E.N.T.E.R">
+          <span className="dashboard-heading__word" aria-hidden="true">{"C.O.M.M.A.N.D".split("").map((character, index) => <span key={`${character}-${index}`}>{character}</span>)}</span>
+          <span className="brand-mark dashboard-heading__mark"><span /></span>
+          <span className="dashboard-heading__word" aria-hidden="true">{"C.E.N.T.E.R".split("").map((character, index) => <span key={`${character}-${index}`}>{character}</span>)}</span>
+        </h1>
       </header>
       <section
         className="hero-console"
         aria-label="Hermes voice command center"
       >
-        <div className="telemetry telemetry--north">
+        <VoiceCore projectId={projectId} />
+      </section>
+      <section className="telemetry-row" aria-label="Project telemetry">
+        <div className="telemetry">
           <small>ORCHESTRATOR</small>
           <strong>HERMES</strong>
           <span>Ready for command</span>
         </div>
-        <div className="telemetry telemetry--east">
+        <div className="telemetry">
           <small>AGENT MESH</small>
-          <strong>
-            {workingAgents} / {state.agents.length}
-          </strong>
+          <strong>{workingAgents} / {state.agents.length}</strong>
           <span>Nodes working</span>
         </div>
-        <div className="telemetry telemetry--south">
+        <div className="telemetry">
           <small>TOKENS</small>
           <strong>{state.tokens.totalMillions.toFixed(2)}M</strong>
           <span>Project usage</span>
         </div>
-        <div className="telemetry telemetry--west">
+        <div className="telemetry">
           <small>OPEN WORK</small>
           <strong>{activeJobs + openPlans}</strong>
           <span>Jobs and plans</span>
         </div>
-        <VoiceCore projectId={projectId} />
       </section>
       <section className="dashboard-grid">
         <ModuleCard
@@ -248,11 +249,6 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
   const [requestError, setRequestError] = useState<ApiError | null>(null);
   const smtp = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "smtp");
   const smtpUnavailable = smtp && ["disconnected", "error", "unconfigured", "unreachable"].includes(smtp.status);
-  const deliveryRate = (
-    (store.state.mail.sent /
-      Math.max(1, store.state.mail.sent + store.state.mail.failed)) *
-    100
-  ).toFixed(1);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!recipient.trim() || !subject.trim() || smtpUnavailable) return;
@@ -291,13 +287,7 @@ function MailModule({ store, runUndoable }: { store: Store; runUndoable: UndoHan
     }
   };
   return (
-    <ModuleGrid
-      stats={[
-        ["Sent", store.state.mail.sent.toLocaleString()],
-        ["Delivery", `${deliveryRate}%`],
-        ["Failed", String(store.state.mail.failed)],
-      ]}
-    >
+    <ModuleGrid>
       <ModuleCard
         title="Recent Mail"
         icon="mail"
@@ -582,13 +572,7 @@ function PreviewModule({ store }: { store: Store }) {
     }));
   };
   return (
-    <ModuleGrid
-      stats={[
-        ["State", store.state.preview.state],
-        ["Target", "Local"],
-        ["Scope", store.projectId],
-      ]}
-    >
+    <ModuleGrid>
       <ModuleCard
         title="Application Preview"
         icon="browser"
@@ -732,20 +716,8 @@ function AgentsModule({ store }: { store: Store }) {
 }
 
 function AgentStatusModule({ state }: { state: OriginalModuleState }) {
-  const average = state.liveProgress.length
-    ? Math.round(
-        state.liveProgress.reduce((sum, work) => sum + work.percent, 0) /
-          state.liveProgress.length,
-      )
-    : 0;
   return (
-    <ModuleGrid
-      stats={[
-        ["Working", String(state.liveProgress.length)],
-        ["Average", `${average}%`],
-        ["Transport", "WebSocket"],
-      ]}
-    >
+    <ModuleGrid>
       <ModuleCard
         title="Live Work Queue"
         icon="activity"
@@ -979,11 +951,14 @@ function GithubModule({ store, runUndoable }: { store: Store; runUndoable: UndoH
 function ChatModule({ store }: { store: Store }) {
   const [message, setMessage] = useState("");
   const [requestError, setRequestError] = useState<ApiError | null>(null);
+  const [recentsOpen, setRecentsOpen] = useState(true);
+  const [sending, setSending] = useState(false);
   const hermes = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "hermes");
   const tts = store.state.apiStatus.find((provider) => provider.name.toLowerCase() === "tts");
   const unavailableStatuses = ["disconnected", "error", "unconfigured", "unreachable"];
   const hermesUnavailable = hermes && unavailableStatuses.includes(hermes.status);
   const ttsUnavailable = tts && unavailableStatuses.includes(tts.status);
+  const recentChats = store.state.chat.filter((item) => item.who === "me").slice(-12).reverse();
   useEffect(() => {
     const receiveTranscript = (event: Event) => {
       const detail = (event as CustomEvent<{ projectId: string; target: string; text: string }>)
@@ -996,38 +971,26 @@ function ChatModule({ store }: { store: Store }) {
   }, [store.projectId]);
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (!message.trim() || hermesUnavailable) return;
+    if (!message.trim() || hermesUnavailable || sending) return;
     const text = message.trim();
-    const messageId = crypto.randomUUID();
     setMessage("");
-    store.update((current) => ({
-      ...current,
-      chat: [
-        ...current.chat,
-        { id: messageId, who: "me", text, time: "Now" },
-      ],
-    }));
+    setSending(true);
     try {
-      const result = await apiRequest<{ text: string }>(`/api/providers?projectId=${store.projectId}`, { method: "POST", body: JSON.stringify({ action: "chat", provider: "hermes", message: text }) });
-      store.update((current) => ({
+      const result = await apiRequest<{ messages: OriginalModuleState["chat"] }>("/api/project-assistant", { method: "POST", body: JSON.stringify({ projectId: store.projectId, provider: "hermes", message: text }) });
+      store.updateCache((current) => ({
         ...current,
-        chat: [...current.chat, { id: crypto.randomUUID(), who: "agent", text: result.text, time: "Now" }],
+        chat: [...current.chat, ...result.messages],
       }));
       setRequestError(null);
     } catch (error) {
-      store.update((current) => ({ ...current, chat: current.chat.filter((item) => item.id !== messageId) }));
       setMessage(text);
-      setRequestError(normalizeApiError(error, "/api/providers"));
+      setRequestError(normalizeApiError(error, "/api/project-assistant"));
+    } finally {
+      setSending(false);
     }
   };
   return (
-    <ModuleGrid
-      stats={[
-        ["Messages", String(store.state.chat.length)],
-        ["Agent", "Hermes"],
-        ["Context", store.projectId],
-      ]}
-    >
+    <ModuleGrid>
       <ModuleCard
         title="Hermes Thread"
         icon="chat"
@@ -1043,57 +1006,90 @@ function ChatModule({ store }: { store: Store }) {
             configureHref="/settings"
           />
         ) : null}
-        <div className="chat-thread">
-          {store.state.chat.length ? store.state.chat.map((item) => (
-            <div
-              key={item.id}
-              className={`chat-bubble chat-bubble--${item.who}`}
-            >
-              <small>
-                {item.who === "me" ? "You" : "Hermes"} / {item.time}
-              </small>
-              <p>{item.text}</p>
-              {item.who === "agent" ? (
-                <button
-                  className="message-audio"
-                  type="button"
-                  onClick={() => speakText(item.text, store.projectId)}
-                  aria-label={`Read response aloud: ${item.text}`}
-                  disabled={Boolean(ttsUnavailable)}
+        <div className={`chat-workspace ${recentsOpen ? "" : "chat-workspace--recents-collapsed"}`}>
+          <aside className="chat-recents" aria-label="Recent chats">
+            <header className="chat-recents__header">
+              {recentsOpen ? <strong>Recent chats</strong> : null}
+              <button
+                className="icon-button chat-recents__toggle"
+                type="button"
+                onClick={() => setRecentsOpen((open) => !open)}
+                aria-label={recentsOpen ? "Collapse recent chats" : "Expand recent chats"}
+                aria-expanded={recentsOpen}
+              >
+                <Icon name="chevron" size={16} />
+              </button>
+            </header>
+            {recentsOpen ? recentChats.length ? (
+              <nav className="chat-recents__list" aria-label="Recent messages">
+                {recentChats.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => document.getElementById(`chat-message-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  >
+                    <span>{item.text}</span>
+                    <time>{item.time}</time>
+                  </button>
+                ))}
+              </nav>
+            ) : <p className="chat-recents__empty">No recent chats yet.</p> : null}
+          </aside>
+          <div className="chat-conversation">
+            <div className="chat-thread">
+              {store.state.chat.length ? store.state.chat.map((item) => (
+                <div
+                  id={`chat-message-${item.id}`}
+                  key={item.id}
+                  className={`chat-bubble chat-bubble--${item.who}`}
                 >
-                  <Icon name="voice" size={14} />
-                  Read aloud
-                </button>
-              ) : null}
+                  <small>
+                    {item.who === "me" ? "You" : "Hermes"} / {item.time}
+                  </small>
+                  <p>{item.text}</p>
+                  {item.who === "agent" ? (
+                    <button
+                      className="message-audio"
+                      type="button"
+                      onClick={() => speakText(item.text, store.projectId)}
+                      aria-label={`Read response aloud: ${item.text}`}
+                      disabled={Boolean(ttsUnavailable)}
+                    >
+                      <Icon name="voice" size={14} />
+                      Read aloud
+                    </button>
+                  ) : null}
+                </div>
+              )) : (
+                <EmptyState
+                  module="chat"
+                  onAction={() => setMessage("Summarize the active project")}
+                />
+              )}
             </div>
-          )) : (
-            <EmptyState
-              module="chat"
-              onAction={() => setMessage("Summarize the active project")}
-            />
-          )}
+            <form className="chat-compose" onSubmit={send}>
+              <input
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Message Hermes..."
+                aria-label="Message Hermes"
+                disabled={Boolean(hermesUnavailable) || sending}
+              />
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => startVoiceCapture("chat", store.projectId)}
+                aria-label="Dictate message"
+                disabled={Boolean(hermesUnavailable) || sending}
+              >
+                <Icon name="microphone" size={17} />
+              </button>
+              <button className="icon-button" aria-label="Send message" disabled={Boolean(hermesUnavailable) || sending}>
+                <Icon name="send" size={17} />
+              </button>
+            </form>
+          </div>
         </div>
-        <form className="chat-compose" onSubmit={send}>
-          <input
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="Message Hermes..."
-            aria-label="Message Hermes"
-            disabled={Boolean(hermesUnavailable)}
-          />
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => startVoiceCapture("chat", store.projectId)}
-            aria-label="Dictate message"
-            disabled={Boolean(hermesUnavailable)}
-          >
-            <Icon name="microphone" size={17} />
-          </button>
-          <button className="icon-button" aria-label="Send message" disabled={Boolean(hermesUnavailable)}>
-            <Icon name="send" size={17} />
-          </button>
-        </form>
       </ModuleCard>
     </ModuleGrid>
   );
@@ -1110,13 +1106,7 @@ function VaultModule({ store }: { store: Store }) {
   }, [store.projectId]);
   const copyPath = () => selected && navigator.clipboard?.writeText(selected.path);
   return (
-    <ModuleGrid
-      stats={[
-        ["Indexed notes", String(vaultNotes.length)],
-        ["Versions", String(vaultNotes.reduce((total, note) => total + note.version, 0))],
-        ["Status", vaultNotes.length ? "Synchronized" : "Empty"],
-      ]}
-    >
+    <ModuleGrid>
       <ModuleCard
         title="Vault Index"
         icon="vault"
@@ -1155,19 +1145,19 @@ function VaultModule({ store }: { store: Store }) {
 }
 
 function ModuleGrid({
-  stats,
+  stats = [],
   children,
 }: {
-  stats: Array<[string, string]>;
+  stats?: Array<[string, string]>;
   children: React.ReactNode;
 }) {
   return (
     <>
-      <div className="module-stat-strip">
+      {stats.length ? <div className="module-stat-strip">
         {stats.map(([label, value]) => (
           <Metric key={label} label={label} value={value} />
         ))}
-      </div>
+      </div> : null}
       <section className="module-layout original-module-layout">
         {children}
       </section>

@@ -40,24 +40,24 @@ export function OperationalModuleView({ module }: { module: ModuleDefinition }) 
 
 function ModuleHeading({ module, live }: { module: ModuleDefinition; live: boolean }) {
   const realtime = useRealtimeStatus();
+  const compact = ["notifications", "settings"].includes(module.slug);
   const transportLabel = realtime.mode === "websocket" ? "WebSocket live" : realtime.mode === "polling" ? "Polling live" : "Live offline";
   return (
     <header className="page-heading">
       <span className="page-heading__icon"><Icon name={module.icon} size={24} /></span>
-      <span><small>PROJECT OPERATIONS</small><h1>{module.label}</h1><p>{module.description}</p></span>
+      <span>{!compact ? <small>PROJECT OPERATIONS</small> : null}<h1>{module.label}</h1>{!compact ? <p>{module.description}</p> : null}</span>
       <span className={live ? "live-tag" : "shell-status"}><span className="live-dot" />{live ? transportLabel : "Project scoped"}</span>
     </header>
   );
 }
 
 function NotificationsModule({ store }: { store: OperationalStore }) {
-  const realtime = useRealtimeStatus();
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const unread = store.state.notifications.filter((notice) => !notice.read).length;
   const visible = filter === "unread" ? store.state.notifications.filter((notice) => !notice.read) : store.state.notifications;
   const markAllRead = () => store.update((state) => ({ ...state, notifications: state.notifications.map((notice) => ({ ...notice, read: true })) }));
 
-  return <OperationalGrid stats={[["Unread", String(unread)], ["Total", String(store.state.notifications.length)], ["Transport", realtime.mode === "websocket" ? "WebSocket" : realtime.mode === "polling" ? "Polling" : "Offline"]]}>
+  return <OperationalGrid>
     <ModuleCard title="Notification Inbox" icon="notifications" eyebrow="Project events" live className="module-layout__primary">
       <div className="module-tabs"><button className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}>All</button><button className={filter === "unread" ? "is-active" : ""} onClick={() => setFilter("unread")}>Unread {unread}</button></div>
       <div className="notification-list">
@@ -92,7 +92,7 @@ function SettingsModule({ store }: { store: OperationalStore }) {
   const { online, simulateOffline } = useReliability();
   const toggle = (key: keyof typeof store.state.preferences) => store.update((state) => ({ ...state, preferences: { ...state.preferences, [key]: !state.preferences[key] } }));
   const preferences = store.state.preferences;
-  return <OperationalGrid stats={[["Saved", "Locally"], ["Scope", store.projectId], ["Role", "Admin"]]}>
+  return <OperationalGrid>
     <ModuleCard title="Notifications & Updates" icon="settings" eyebrow="Project preferences" className="module-layout__primary">
       <div className="preference-list"><Preference label="Desktop notifications" detail="Surface project events while Agent OS is open." checked={preferences.desktopNotifications} onChange={() => toggle("desktopNotifications")} /><Preference label="Live module updates" detail="Apply realtime events to active module surfaces." checked={preferences.liveUpdates} onChange={() => toggle("liveUpdates")} /><Preference label="Digest email" detail="Queue scheduled summaries for local mail delivery." checked={preferences.digestEmail} onChange={() => toggle("digestEmail")} /></div>
     </ModuleCard>
@@ -161,8 +161,8 @@ function EnvironmentsModule({ store }: { store: OperationalStore }) {
   </OperationalGrid>;
 }
 
-function OperationalGrid({ stats, children }: { stats: Array<[string, string]>; children: React.ReactNode }) {
-  return <><div className="module-stat-strip">{stats.map(([label, value]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}</div><section className="module-layout original-module-layout">{children}</section></>;
+function OperationalGrid({ stats = [], children }: { stats?: Array<[string, string]>; children: React.ReactNode }) {
+  return <>{stats.length ? <div className="module-stat-strip">{stats.map(([label, value]) => <span key={label}><strong>{value}</strong><small>{label}</small></span>)}</div> : null}<section className="module-layout original-module-layout">{children}</section></>;
 }
 
 function StatusBadge({ status, text }: { status: "success" | "warning" | "error" | "neutral"; text: string }) {

@@ -21,6 +21,8 @@ Users need to monitor and converse with several projects without losing context 
 - Bind each panel to one immutable project ID; opening or focusing a panel does not switch the main workspace.
 - Build bounded provider context on the server from only the selected project's persisted records.
 - Persist completed user/assistant message pairs and token usage transactionally to that project.
+- Use the same persisted project-assistant conversation path for the main AI Chat workspace and floating project panels so recent messages survive reload.
+- Show recent project prompts in a default-open, collapsible main-workspace rail with an explicit empty state.
 - Recognize explicit project-open commands deterministically and require confirmation before opening or focusing a target project.
 - Keep ordinary discussion in the current project context; never silently merge another project's data.
 - Include project identity in voice state, transcript events, transcription requests, and TTS requests.
@@ -35,6 +37,7 @@ Different projects can chat concurrently while project data remains isolated. Se
 
 - Context tests prove project A prompts never contain project B records.
 - Provider failure persists no chat messages.
+- Main-workspace chat results hydrate from the same project-scoped message records as assistant panels.
 - Intent tests cover exact, ambiguous, unknown, and ordinary discussion paths.
 - Voice callers and APIs require or resolve an active project identity.
 - ESLint passes, all 64 Vitest tests pass, and the optimized production build succeeds.

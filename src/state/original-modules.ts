@@ -127,6 +127,11 @@ export function useOriginalModuleStore() {
       });
   }, [projectId]);
 
+  const updateCache = useCallback((mutate: (current: OriginalModuleState) => OriginalModuleState) => {
+    if (!projectId) return;
+    writeState(projectId, mutate(parseState(window.localStorage.getItem(projectStorageKey(projectId)))));
+  }, [projectId]);
+
   useEffect(() => {
     if (!projectId) return;
     void apiRequest<{ original: OriginalModuleState }>(`/api/state?projectId=${projectId}`)
@@ -153,5 +158,5 @@ export function useOriginalModuleStore() {
 
   const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
 
-  return { hydrationState, persistenceError, projectId, retryHydration, state, update };
+  return { hydrationState, persistenceError, projectId, retryHydration, state, update, updateCache };
 }
