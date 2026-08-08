@@ -23,7 +23,13 @@ const configuredPollInterval = Number(process.env.NEXT_PUBLIC_HERMES_POLL_INTERV
 const PUSH_INTERVAL = Number.isFinite(configuredPushInterval) && configuredPushInterval > 0 ? configuredPushInterval : 5000;
 const POLL_INTERVAL = Number.isFinite(configuredPollInterval) && configuredPollInterval > 0 ? configuredPollInterval : 7000;
 const channels: RealtimeChannel[] = ["agent-status", "notifications", "status", "voice"];
-const backendMode = process.env.NEXT_PUBLIC_REALTIME_MODE === "websocket";
+const backendMode = process.env.NEXT_PUBLIC_REALTIME_MODE !== "disabled";
+
+function realtimeUrl() {
+  if (process.env.NEXT_PUBLIC_HERMES_WS_URL) return process.env.NEXT_PUBLIC_HERMES_WS_URL;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.hostname}:8787/ws`;
+}
 
 function receiveBackendEvent(event: RealtimeEvent) {
   publishRealtimeEvent({ ...event, payload: typeof event.payload === "string" ? JSON.parse(event.payload) : event.payload });
@@ -67,7 +73,7 @@ function startBackendTransport() {
   };
   const connect = () => {
     if (disposed || window.localStorage.getItem(SOCKET_UNAVAILABLE_KEY) === "true") { startPolling(); return; }
-    socket = new WebSocket(process.env.NEXT_PUBLIC_HERMES_WS_URL ?? "ws://127.0.0.1:8787/ws");
+    socket = new WebSocket(realtimeUrl());
     socket.addEventListener("open", () => {
       if (pollTimer !== null) { window.clearInterval(pollTimer); pollTimer = null; }
       updateRealtimeStatus({ ...getRealtimeStatus(), mode: "websocket", connected: true });

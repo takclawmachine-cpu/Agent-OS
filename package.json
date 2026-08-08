@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup-env.mjs",
+    "config:check": "node scripts/setup-env.mjs --check",
     "dev": "next dev",
     "dev:full": "concurrently --kill-others --names web,realtime,scheduler \"npm:dev -- --hostname 127.0.0.1 --port 3000\" \"npm:realtime\" \"npm:scheduler\"",
     "build": "next build",
     "start": "next start",
+    "start:full": "concurrently --kill-others --names web,realtime,scheduler \"npm:start\" \"npm:realtime\" \"npm:scheduler\"",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",

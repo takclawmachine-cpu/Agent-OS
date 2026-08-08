@@ -4,9 +4,11 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 
 import { applyLogRetention, pruneBackupFiles, runRecoveryDrills } from "./maintenance.mjs";
+import { assertConfigured } from "./runtime-config.mjs";
 
 const environmentPath = path.join(process.cwd(), ".env.local");
 if (fs.existsSync(environmentPath)) process.loadEnvFile?.(environmentPath);
+assertConfigured();
 
 const databasePath = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd(), "data", "agent-os.db");
 const backupDirectory = process.env.AGENT_OS_BACKUP_PATH ?? path.join(process.cwd(), "backups");

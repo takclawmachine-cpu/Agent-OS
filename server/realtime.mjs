@@ -5,16 +5,17 @@ import path from "node:path";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { WebSocketServer } from "ws";
 
+import { assertConfigured } from "./runtime-config.mjs";
+
 const environmentPath = path.join(process.cwd(), ".env.local");
 if (fs.existsSync(environmentPath)) process.loadEnvFile?.(environmentPath);
+assertConfigured();
 
 const port = Number(process.env.HERMES_WS_PORT ?? 8787);
 const databasePath = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd(), "data", "agent-os.db");
 fs.mkdirSync(path.dirname(databasePath), { recursive: true });
 const database = new Database(databasePath);
 database.exec("PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, environment TEXT NOT NULL DEFAULT 'Local', version INTEGER NOT NULL DEFAULT 1, deleted_at TEXT, purge_after TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS realtime_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, channel TEXT NOT NULL, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, occurred_at TEXT NOT NULL);");
-const timestamp = new Date().toISOString();
-database.prepare("INSERT OR IGNORE INTO projects (id,name,created_at,updated_at) VALUES ('agent-os','Agent OS',?,?)").run(timestamp, timestamp);
 
 const server = http.createServer((request, response) => {
   if (request.url === "/health") {

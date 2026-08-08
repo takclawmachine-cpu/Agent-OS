@@ -19,6 +19,10 @@ The companion scheduler applies database retention every minute and marks expire
 ## Secret Controls
 
 - `.env*` files, private keys, databases, and backup files are excluded from source control.
+- Run `npm run setup` after cloning to generate a scrypt owner-password hash and random session secret; the plaintext password is never written to disk.
+- Run `npm run config:check` before local or VPS startup. Login requires core settings and one AI option; optional integrations remain independently unavailable.
+- Docker images contain no env files or credentials. Supply runtime settings with `docker run --env-file .env.local` or the platform's secret injection mechanism.
+- Restrict `.env.local` to the application service account and rotate the owner password hash, session secret, and affected provider keys after suspected exposure.
 - The repository pre-commit hook scans staged additions for high-confidence credential formats.
 - CI performs an independent full-history Gitleaks scan and `npm audit --audit-level=high`.
 - Rotate a credential immediately if any scanner reports that it entered Git history; deleting only the current file is insufficient.

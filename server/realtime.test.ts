@@ -45,8 +45,25 @@ describe("realtime server", () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-os-realtime-"));
     const databasePath = path.join(directory, "realtime.db");
     const port = 18000 + Math.floor(Math.random() * 1000);
+    const database = new Database(databasePath);
+    const now = new Date().toISOString();
+    database.exec("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, environment TEXT NOT NULL DEFAULT 'Local', version INTEGER NOT NULL DEFAULT 1, deleted_at TEXT, purge_after TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
+    database.prepare("INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)").run("agent-os", "Realtime Test", now, now);
+    database.close();
     processHandle = spawn(process.execPath, [path.join(process.cwd(), "server", "realtime.mjs")], {
-      cwd: process.cwd(), env: { ...process.env, AGENT_OS_DATABASE_PATH: databasePath, HERMES_WS_PORT: String(port), HERMES_PUSH_INTERVAL_MS: "50", HERMES_AUTH_TOKEN: "realtime-test-token" }, stdio: ["ignore", "pipe", "pipe"],
+      cwd: process.cwd(), env: {
+        ...process.env,
+        AGENT_OS_OWNER_NAME: "Test Owner",
+        AGENT_OS_OWNER_EMAIL: "owner@example.com",
+        AGENT_OS_OWNER_PASSWORD_HASH: `scrypt$${"a".repeat(32)}$${"b".repeat(128)}`,
+        AGENT_OS_SESSION_SECRET: "test-session-secret-that-is-at-least-32-characters",
+        AGENT_OS_DATABASE_PATH: databasePath,
+        AGENT_OS_BACKUP_PATH: directory,
+        OPENAI_API_KEY: "test-provider-key",
+        HERMES_WS_PORT: String(port),
+        HERMES_PUSH_INTERVAL_MS: "50",
+        HERMES_AUTH_TOKEN: "realtime-test-token",
+      }, stdio: ["ignore", "pipe", "pipe"],
     });
     await waitForOutput(processHandle, "realtime server ready");
 
