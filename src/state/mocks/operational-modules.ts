@@ -32,7 +32,7 @@ export type OperationalModuleState = {
     modules: string[];
     history: Array<{ id: string; title: string; createdAt: string; status: "ready" | "scheduled" }>;
   };
-  environment: "Local" | "Staging" | "Production";
+  environment: string;
 };
 
 export const OPERATIONAL_EVENT = "agent-os-operational-modules-change";

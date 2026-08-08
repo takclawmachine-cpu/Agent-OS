@@ -23,34 +23,7 @@ import {
   useOriginalModuleStore,
 } from "@/state/mocks/original-modules";
 
-const vaultNotes = [
-  {
-    id: "index",
-    title: "Memory Bank Index",
-    path: "memory_bank/index.md",
-    detail:
-      "Master retrieval surface for active decisions, architecture, prompts, and phase trackers.",
-  },
-  {
-    id: "architecture",
-    title: "Architecture Overview",
-    path: "memory_bank/architecture/overview.md",
-    detail:
-      "Living product architecture, module inventory, and phase boundaries.",
-  },
-  {
-    id: "design",
-    title: "Design System Decision",
-    path: "memory_bank/decisions/0001-design-system.md",
-    detail: "Central tokens, permissions, state treatments, and icon contract.",
-  },
-  {
-    id: "tracker",
-    title: "Phase 2 Tracker",
-    path: "memory_bank/todos/phase-2.md",
-    detail: "Current backend integration status mirrored from the PRD checklist.",
-  },
-] as const;
+type VaultNote = { path: string; version: number; content: string; createdAt: string };
 
 const subscribeToOrigin = () => () => undefined;
 
@@ -78,7 +51,7 @@ export function OriginalModuleView({ module }: { module: ModuleDefinition }) {
         {module.slug === "api-status" ? <ApiStatusModule store={store} /> : null}
         {module.slug === "github" ? <GithubModule store={store} runUndoable={runUndoable} /> : null}
         {module.slug === "chat" ? <ChatModule store={store} /> : null}
-        {module.slug === "vault" ? <VaultModule /> : null}
+        {module.slug === "vault" ? <VaultModule store={store} /> : null}
       </ResourceStateGate>
     </div>
   );
@@ -1105,17 +1078,22 @@ function ChatModule({ store }: { store: Store }) {
   );
 }
 
-function VaultModule() {
-  const [selected, setSelected] = useState<(typeof vaultNotes)[number]>(
-    vaultNotes[0],
-  );
-  const copyPath = () => navigator.clipboard?.writeText(selected.path);
+function VaultModule({ store }: { store: Store }) {
+  const [vaultNotes, setVaultNotes] = useState<VaultNote[]>([]);
+  const [selected, setSelected] = useState<VaultNote | null>(null);
+  useEffect(() => {
+    void apiRequest<VaultNote[]>(`/api/vault?projectId=${encodeURIComponent(store.projectId)}`).then((notes) => {
+      setVaultNotes(notes);
+      setSelected(notes[0] ?? null);
+    });
+  }, [store.projectId]);
+  const copyPath = () => selected && navigator.clipboard?.writeText(selected.path);
   return (
     <ModuleGrid
       stats={[
-        ["Indexed notes", "7"],
-        ["Decisions", "7"],
-        ["Status", "Synchronized"],
+        ["Indexed notes", String(vaultNotes.length)],
+        ["Versions", String(vaultNotes.reduce((total, note) => total + note.version, 0))],
+        ["Status", vaultNotes.length ? "Synchronized" : "Empty"],
       ]}
     >
       <ModuleCard
@@ -1127,28 +1105,29 @@ function VaultModule() {
         <div className="vault-list">
           {vaultNotes.map((note) => (
             <button
-              key={note.id}
-              className={selected.id === note.id ? "is-active" : ""}
+              key={note.path}
+              className={selected?.path === note.path ? "is-active" : ""}
               onClick={() => setSelected(note)}
             >
               <Icon name="vault" size={17} />
               <span>
-                <strong>{note.title}</strong>
+                <strong>{note.path.split("/").at(-1)}</strong>
                 <small>{note.path}</small>
               </span>
             </button>
           ))}
+          {!vaultNotes.length ? <EmptyState module="vault" /> : null}
         </div>
       </ModuleCard>
-      <ModuleCard title={selected.title} icon="folder" eyebrow="Memory preview">
-        <div className="vault-preview">
+      <ModuleCard title={selected?.path.split("/").at(-1) ?? "Note preview"} icon="folder" eyebrow="Memory preview">
+        {selected ? <div className="vault-preview">
           <code>{selected.path}</code>
-          <p>{selected.detail}</p>
+          <p>{selected.content}</p>
           <button className="secondary-action" onClick={copyPath}>
             <Icon name="copy" size={15} />
             Copy workspace path
           </button>
-        </div>
+        </div> : <EmptyState module="vault" />}
       </ModuleCard>
     </ModuleGrid>
   );

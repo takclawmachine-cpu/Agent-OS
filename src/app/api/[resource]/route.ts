@@ -23,6 +23,8 @@ const allowedReadTables: Record<string, string> = {
   digests: "SELECT * FROM digest_configs WHERE project_id = ?",
   environments: "SELECT * FROM environments WHERE project_id = ?",
   reports: "SELECT * FROM reports WHERE project_id = ? ORDER BY created_at DESC",
+  search: "SELECT id, kind, title, body, resource_id AS resourceId FROM search_entries WHERE project_id = ? ORDER BY title",
+  vault: "SELECT note_path AS path, version, content, created_at AS createdAt FROM vault_note_versions WHERE project_id = ? AND version = (SELECT MAX(latest.version) FROM vault_note_versions latest WHERE latest.project_id = vault_note_versions.project_id AND latest.note_path = vault_note_versions.note_path) ORDER BY note_path",
   backups: "SELECT * FROM backup_records WHERE project_id = ? ORDER BY created_at DESC",
   "backup-drills": "SELECT * FROM backup_drills WHERE project_id = ? ORDER BY created_at DESC",
   terminal: "SELECT * FROM terminal_commands WHERE project_id = ? ORDER BY created_at",

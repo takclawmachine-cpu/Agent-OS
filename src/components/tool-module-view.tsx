@@ -20,7 +20,7 @@ import { useToolModuleStore, type ToolModuleState } from "@/state/mocks/tool-mod
 
 type ToolStore = ReturnType<typeof useToolModuleStore>;
 
-const skillCatalog = ["Git", "Next.js", "FastAPI", "Docker", "SQL", "Prompt Engineering", "Testing", "Deployment"] as const;
+type ProjectSkill = { id: string; name: string; category: string; description: string; agentIds: string | null };
 export function ToolModuleView({ module }: { module: ModuleDefinition }) {
   const tools = useToolModuleStore();
   return (
@@ -85,9 +85,16 @@ function TodoModule({ store }: { store: ToolStore }) {
 function SkillsModule({ store }: { store: ToolStore }) {
   const original = useOriginalModuleStore();
   const [agentId, setAgentId] = useState(original.state.agents[0]?.id ?? "");
-  const assigned = store.state.skillAssignments[agentId] ?? [];
-  const toggle = (skill: string) => store.update((state) => { const current = state.skillAssignments[agentId] ?? []; return { ...state, skillAssignments: { ...state.skillAssignments, [agentId]: current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill] } }; });
-  return <ToolGrid stats={[["Catalog", String(skillCatalog.length)], ["Assigned", String(assigned.length)], ["Agents", String(original.state.agents.length)]]}><ModuleCard title="Skill Catalog" icon="skills" eyebrow="Database registry" className="module-layout__primary"><div className="skill-grid">{skillCatalog.map((skill) => <article key={skill}><Icon name="skills" /><span><strong>{skill}</strong><small>{Object.values(store.state.skillAssignments).filter((items) => items.includes(skill)).length} agents</small></span></article>)}</div></ModuleCard><ModuleCard title="Agent Assignment" icon="agents" eyebrow="Persisted mapping">{!original.state.agents.length ? <EmptyState module="skills" title="No agents available" description="Add an agent before assigning catalog skills." actionLabel="Add an agent" actionHref="/agents" /> : <div className="module-form"><label>Agent<select value={agentId} onChange={(event) => setAgentId(event.target.value)}>{original.state.agents.map((agent) => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select></label>{assigned.length ? <div className="assignment-list">{skillCatalog.map((skill) => <label key={skill}><input type="checkbox" checked={assigned.includes(skill)} onChange={() => toggle(skill)} />{skill}</label>)}</div> : <EmptyState module="skills" onAction={() => toggle(skillCatalog[0])} />}</div>}</ModuleCard></ToolGrid>;
+  const [skills, setSkills] = useState<ProjectSkill[]>([]);
+  useEffect(() => {
+    void apiRequest<ProjectSkill[]>(`/api/skills?projectId=${encodeURIComponent(store.projectId)}`).then(setSkills);
+  }, [store.projectId]);
+  const assigned = skills.filter((skill) => skill.agentIds?.split(",").includes(agentId));
+  const toggle = async (skill: ProjectSkill) => {
+    const next = await apiRequest<ProjectSkill[]>(`/api/skills?projectId=${encodeURIComponent(store.projectId)}`, { method: "POST", body: JSON.stringify({ agentId, skillId: skill.id, assigned: !assigned.some((item) => item.id === skill.id) }) });
+    setSkills(next);
+  };
+  return <ToolGrid stats={[["Catalog", String(skills.length)], ["Assigned", String(assigned.length)], ["Agents", String(original.state.agents.length)]]}><ModuleCard title="Skill Catalog" icon="skills" eyebrow="Database registry" className="module-layout__primary">{skills.length ? <div className="skill-grid">{skills.map((skill) => <article key={skill.id}><Icon name="skills" /><span><strong>{skill.name}</strong><small>{skill.agentIds?.split(",").filter(Boolean).length ?? 0} agents</small></span></article>)}</div> : <EmptyState module="skills" />}</ModuleCard><ModuleCard title="Agent Assignment" icon="agents" eyebrow="Persisted mapping">{!original.state.agents.length ? <EmptyState module="skills" title="No agents available" description="Add an agent before assigning catalog skills." actionLabel="Add an agent" actionHref="/agents" /> : !skills.length ? <EmptyState module="skills" /> : <div className="module-form"><label>Agent<select value={agentId} onChange={(event) => setAgentId(event.target.value)}>{original.state.agents.map((agent) => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select></label><div className="assignment-list">{skills.map((skill) => <label key={skill.id}><input type="checkbox" checked={assigned.some((item) => item.id === skill.id)} onChange={() => void toggle(skill)} />{skill.name}</label>)}</div></div>}</ModuleCard></ToolGrid>;
 }
 
 function TerminalModule({ store }: { store: ToolStore }) {

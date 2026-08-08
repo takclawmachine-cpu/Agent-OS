@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useDeferredValue, useState } from "react";
+import { FormEvent, useDeferredValue, useEffect, useState } from "react";
 
 import { ResourceStateGate } from "@/components/api-state";
 import { EmptyState } from "@/components/empty-state";
@@ -9,23 +9,15 @@ import { Icon } from "@/components/icon";
 import { ModuleCard } from "@/components/module-card";
 import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
+import { apiRequest } from "@/lib/api-client";
 import { modules, type ModuleDefinition } from "@/lib/modules";
 import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
 import { useOriginalModuleStore } from "@/state/mocks/original-modules";
 
 type OperationalStore = ReturnType<typeof useOperationalModuleStore>;
 
-const searchableKnowledge = [
-  { title: "Memory Bank Index", detail: "Project decisions and active phase trackers", href: "/vault", kind: "Knowledge" },
-  { title: "Hermes local contract", detail: "WebSocket endpoint and event envelope", href: "/api-status", kind: "Knowledge" },
-  { title: "Phase 2 module plan", detail: "Current backend integration sequence", href: "/plans", kind: "Knowledge" },
-] as const;
-
-const environments = [
-  { name: "Local", endpoint: "127.0.0.1:3000", detail: "SQLite data and local realtime service", status: "healthy" },
-  { name: "Staging", endpoint: "staging.agent-os.internal", detail: "Shared validation environment", status: "ready" },
-  { name: "Production", endpoint: "agent-os.internal", detail: "Protected release environment", status: "locked" },
-] as const;
+type ProjectEnvironment = { id: string; name: string; endpoint: string; status: string };
+type SearchEntry = { id: string; kind: string; title: string; body: string; resourceId: string };
 
 export function OperationalModuleView({ module }: { module: ModuleDefinition }) {
   const operations = useOperationalModuleStore();
@@ -35,7 +27,7 @@ export function OperationalModuleView({ module }: { module: ModuleDefinition }) 
       <ModuleHeading module={module} live={module.slug === "notifications" || module.slug === "status"} />
       <ResourceStateGate state={operations.hydrationState} persistenceError={operations.persistenceError} onRetry={operations.retryHydration}>
         {module.slug === "notifications" ? <NotificationsModule store={operations} /> : null}
-        {module.slug === "search" ? <SearchModule /> : null}
+        {module.slug === "search" ? <SearchModule store={operations} /> : null}
         {module.slug === "settings" ? <SettingsModule store={operations} /> : null}
         {module.slug === "status" ? <StatusModule /> : null}
         {module.slug === "billing" ? <BillingModule operations={operations} /> : null}
@@ -77,11 +69,15 @@ function NotificationsModule({ store }: { store: OperationalStore }) {
   </OperationalGrid>;
 }
 
-function SearchModule() {
+function SearchModule({ store }: { store: OperationalStore }) {
   const [query, setQuery] = useState("");
+  const [searchableKnowledge, setSearchableKnowledge] = useState<SearchEntry[]>([]);
+  useEffect(() => {
+    void apiRequest<SearchEntry[]>(`/api/search?projectId=${encodeURIComponent(store.projectId)}`).then(setSearchableKnowledge);
+  }, [store.projectId]);
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
   const moduleResults = modules.filter((module) => `${module.label} ${module.description}`.toLowerCase().includes(deferredQuery)).map((module) => ({ title: module.label, detail: module.description, href: `/${module.slug}`, kind: "Module" }));
-  const knowledgeResults = searchableKnowledge.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(deferredQuery));
+  const knowledgeResults = searchableKnowledge.filter((item) => `${item.title} ${item.body}`.toLowerCase().includes(deferredQuery)).map((item) => ({ title: item.title, detail: item.body, href: `/${item.kind}`, kind: "Knowledge" }));
   const results = deferredQuery ? [...moduleResults, ...knowledgeResults] : moduleResults.slice(0, 8);
 
   return <OperationalGrid stats={[["Modules", String(modules.length)], ["Knowledge", String(searchableKnowledge.length)], ["Scope", "Active project"]]}>
@@ -148,8 +144,13 @@ function DigestsModule({ store }: { store: OperationalStore }) {
 }
 
 function EnvironmentsModule({ store }: { store: OperationalStore }) {
+  const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
+  useEffect(() => {
+    void apiRequest<ProjectEnvironment[]>(`/api/environments?projectId=${encodeURIComponent(store.projectId)}`).then(setEnvironments);
+  }, [store.projectId]);
+
   return <OperationalGrid stats={[["Active", store.state.environment], ["Available", String(environments.length)], ["Scope", store.projectId]]}>
-    <ModuleCard title="Environment Matrix" icon="environments" eyebrow="Project targets" className="module-layout__full"><div className="environment-grid">{environments.map((environment) => { const active = store.state.environment === environment.name; return <article key={environment.name} className={active ? "is-active" : ""}><header><span><strong>{environment.name}</strong><small>{environment.endpoint}</small></span><StatusBadge status={environment.status === "healthy" ? "success" : environment.status === "ready" ? "neutral" : "warning"} text={active ? "active" : environment.status} /></header><p>{environment.detail}</p><button className={active ? "secondary-action" : "primary-action"} disabled={active || environment.status === "locked"} onClick={() => store.update((state) => ({ ...state, environment: environment.name }))}>{active ? "Current environment" : environment.status === "locked" ? "Requires release" : `Activate ${environment.name}`}</button></article>; })}</div></ModuleCard>
+    <ModuleCard title="Environment Matrix" icon="environments" eyebrow="Project targets" className="module-layout__full">{environments.length ? <div className="environment-grid">{environments.map((environment) => { const active = store.state.environment === environment.name; return <article key={environment.id} className={active ? "is-active" : ""}><header><span><strong>{environment.name}</strong><small>{environment.endpoint}</small></span><StatusBadge status={environment.status === "healthy" ? "success" : environment.status === "ready" ? "neutral" : "warning"} text={active ? "active" : environment.status} /></header><button className={active ? "secondary-action" : "primary-action"} disabled={active || environment.status === "locked"} onClick={() => store.update((state) => ({ ...state, environment: environment.name }))}>{active ? "Current environment" : environment.status === "locked" ? "Requires release" : `Activate ${environment.name}`}</button></article>; })}</div> : <EmptyState module="environments" />}</ModuleCard>
   </OperationalGrid>;
 }
 
