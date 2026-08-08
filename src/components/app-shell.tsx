@@ -179,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <NeuralField />
       <header className="topbar">
         <div className="topbar__brand">
-          <button className="icon-button navigation-toggle" type="button" onClick={() => setNavigationOpen((open) => !open)} aria-label="Toggle navigation" aria-expanded={navigationOpen}>
+          <button className="icon-button navigation-toggle" type="button" onClick={() => setNavigationOpen((open) => !open)} aria-label={navigationOpen ? "Collapse navigation" : "Expand navigation"} aria-expanded={navigationOpen}>
             <Icon name={navigationOpen ? "close" : "menu"} />
           </button>
           <span className="brand-mark"><span /></span>
@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <section key={group.label}>
               <span className="sidebar__label">{group.label}</span>
               {group.modules.map((module) => (
-                <Link key={module.slug} href={`/${module.slug}`} className={activeSlug === module.slug ? "is-active" : ""} onClick={() => setNavigationOpen(false)}>
+                <Link key={module.slug} href={`/${module.slug}`} className={activeSlug === module.slug ? "is-active" : ""} onClick={() => setNavigationOpen(false)} aria-label={module.label} title={!navigationOpen ? module.label : undefined}>
                   <Icon name={module.icon} size={17} />
                   <span>{module.label}</span>
                   {module.slug === "agent-status" ? <span className="nav-live" /> : null}
@@ -253,7 +253,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </footer>
       </aside>
 
-      <main className="shell-main" data-project={activeProject?.id ?? ""} data-environment={operations.state.environment}>{children}</main>
+      <main className={`shell-main ${navigationOpen ? "shell-main--sidebar-open" : ""}`} data-project={activeProject?.id ?? ""} data-environment={operations.state.environment}>{children}</main>
 
       {commandOpen ? (
         <div className="command-overlay" role="presentation" onMouseDown={() => setCommandOpen(false)}>

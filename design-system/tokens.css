@@ -72,6 +72,7 @@
   --control-icon: 38px;
   --shell-topbar-height: 66px;
   --shell-sidebar-width: 238px;
+  --shell-sidebar-collapsed-width: 64px;
   --shell-content-max: 1480px;
   --shell-content-pad: 26px;
   --panel-blur: 20px;

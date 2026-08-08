@@ -164,7 +164,7 @@ input:focus-visible {
 .brand-mark span { inset: -4px; opacity: 0.28; }
 
 .navigation-toggle {
-  display: none;
+  display: grid;
 }
 
 .icon-button {
@@ -985,11 +985,17 @@ kbd {
   left: 0;
   z-index: 30;
   display: flex;
-  width: var(--shell-sidebar-width);
+  width: var(--shell-sidebar-collapsed-width);
   flex-direction: column;
   border-right: var(--stroke-thin) solid var(--border-subtle);
   background: color-mix(in srgb, var(--surface-base) 76%, transparent);
   backdrop-filter: blur(var(--panel-blur));
+  transition: width var(--motion-medium), transform var(--motion-medium);
+}
+
+.sidebar--open {
+  width: var(--shell-sidebar-width);
+  box-shadow: var(--elevation-floating);
 }
 
 .sidebar nav {
@@ -1003,6 +1009,32 @@ kbd {
 .sidebar section {
   display: grid;
   margin-bottom: var(--space-3);
+}
+
+.sidebar:not(.sidebar--open) .sidebar__label,
+.sidebar:not(.sidebar--open) a > span:not(.nav-live),
+.sidebar:not(.sidebar--open) footer small {
+  display: none;
+}
+
+.sidebar:not(.sidebar--open) a {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.sidebar:not(.sidebar--open) .nav-live {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+}
+
+.sidebar:not(.sidebar--open) footer {
+  place-items: center;
+  padding-inline: 0;
+}
+
+.sidebar:not(.sidebar--open) .sidebar__signal {
+  font-size: 0;
 }
 
 .sidebar a {
@@ -1060,10 +1092,16 @@ kbd {
 }
 
 .shell-main {
-  width: calc(100% - var(--shell-sidebar-width));
+  width: calc(100% - var(--shell-sidebar-collapsed-width));
   min-height: 100vh;
-  margin-left: var(--shell-sidebar-width);
+  margin-left: var(--shell-sidebar-collapsed-width);
   padding: calc(var(--shell-topbar-height) + var(--shell-content-pad)) var(--shell-content-pad) var(--shell-content-pad);
+  transition: width var(--motion-medium), margin-left var(--motion-medium);
+}
+
+.shell-main--sidebar-open {
+  width: calc(100% - var(--shell-sidebar-width));
+  margin-left: var(--shell-sidebar-width);
 }
 
 .dashboard-view,
@@ -2271,12 +2309,28 @@ body.compact-density .notification-list > button { padding-top: var(--space-2); 
     transition: transform var(--motion-medium);
   }
 
+  .sidebar:not(.sidebar--open) .sidebar__label,
+  .sidebar:not(.sidebar--open) a > span:not(.nav-live),
+  .sidebar:not(.sidebar--open) footer small {
+    display: initial;
+  }
+
+  .sidebar:not(.sidebar--open) a {
+    justify-content: flex-start;
+    padding: var(--space-2) var(--space-3);
+  }
+
   .sidebar--open {
     transform: translateX(0);
     box-shadow: var(--elevation-floating);
   }
 
   .shell-main {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .shell-main--sidebar-open {
     width: 100%;
     margin-left: 0;
   }
