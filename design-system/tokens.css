@@ -1,0 +1,159 @@
+/* Agent OS Phase 1 design tokens. This file is the styling source of truth. */
+:root {
+  color-scheme: dark;
+
+  --surface-base: #050001;
+  --surface-raised: rgba(25, 5, 8, 0.62);
+  --surface-overlay: rgba(42, 8, 13, 0.54);
+  --surface-hover: rgba(78, 14, 24, 0.48);
+  --border-subtle: rgba(255, 72, 101, 0.17);
+  --border-strong: rgba(255, 72, 101, 0.4);
+
+  --text-primary: #fff3f5;
+  --text-secondary: #c79aa2;
+  --text-tertiary: #80535b;
+
+  --accent-primary: #ff3657;
+  --accent-primary-hover: #ff5270;
+  --accent-primary-dim: rgba(255, 54, 87, 0.14);
+  --accent-red: var(--accent-primary);
+  --accent-red-dim: var(--accent-primary-dim);
+  --accent-blue: var(--accent-primary);
+  --accent-blue-dim: var(--accent-primary-dim);
+
+  --status-success: #33d17a;
+  --status-success-dim: rgba(51, 209, 122, 0.14);
+  --status-warning: #ffb443;
+  --status-warning-dim: rgba(255, 180, 67, 0.14);
+  --status-error: #ff3657;
+  --status-error-dim: rgba(255, 54, 87, 0.14);
+  --status-info: #ff7189;
+  --status-info-dim: rgba(255, 113, 137, 0.14);
+  --status-neutral: #897078;
+  --status-neutral-dim: rgba(137, 112, 120, 0.14);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  --radius-card: 8px;
+  --radius-sm: 7px;
+  --radius-xs: 6px;
+  --radius-pill: 999px;
+
+  --elevation-flat: none;
+  --elevation-raised: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.38);
+  --elevation-floating: 0 20px 60px rgba(0, 0, 0, 0.6);
+
+  --motion-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-medium: 240ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-slow: 420ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font-ui: "Aptos", "Segoe UI Variable", "Trebuchet MS", sans-serif;
+  --font-num: ui-monospace, "SF Mono", Consolas, monospace;
+  --font-display: "Bahnschrift", "Aptos Display", "Trebuchet MS", sans-serif;
+
+  --text-xs: 0.68rem;
+  --text-sm: 0.78rem;
+  --text-md: 0.9rem;
+  --text-lg: 1.05rem;
+  --text-xl: 1.45rem;
+  --text-display: clamp(1.8rem, 3vw, 2.7rem);
+  --line-compact: 1.2;
+  --line-body: 1.55;
+
+  --stroke-thin: 1px;
+  --control-height: 40px;
+  --control-icon: 38px;
+  --shell-topbar-height: 66px;
+  --shell-sidebar-width: 238px;
+  --shell-sidebar-collapsed-width: 64px;
+  --shell-content-max: 1480px;
+  --shell-content-pad: 26px;
+  --panel-blur: 20px;
+  --voice-size: 112px;
+  --voice-orbit-inner: 190px;
+  --voice-orbit-outer: 310px;
+  --hero-height: 520px;
+  --auth-content-max: 1240px;
+  --auth-panel-width: 460px;
+  --onboarding-rail-width: 280px;
+  --onboarding-stage-max: 760px;
+
+  --notification-bg: var(--accent-primary);
+  --notification-text: #ffffff;
+  --notification-ring: var(--surface-raised);
+
+  --voice-idle: #ff3657;
+  --voice-listening: #ff2349;
+  --voice-transcribing: #c81032;
+  --voice-error: var(--status-error);
+  --voice-glow-idle: rgba(255, 54, 87, 0.38);
+  --voice-glow-active: rgba(255, 35, 73, 0.72);
+
+  --live-color: var(--status-success);
+  --live-bg: var(--status-success-dim);
+  --live-pulse-duration: 1.6s;
+}
+
+body.theme-light {
+  color-scheme: light;
+  --surface-base: #f4f0f1;
+  --surface-raised: rgba(255, 255, 255, 0.76);
+  --surface-overlay: rgba(255, 248, 249, 0.82);
+  --surface-hover: rgba(255, 224, 230, 0.76);
+  --border-subtle: rgba(137, 8, 31, 0.15);
+  --border-strong: rgba(180, 12, 43, 0.34);
+  --text-primary: #21070c;
+  --text-secondary: #70434a;
+  --text-tertiary: #9a7177;
+  --accent-primary: #c81032;
+  --accent-primary-hover: #a90d2c;
+  --accent-primary-dim: rgba(200, 16, 50, 0.11);
+  --accent-red: var(--accent-primary);
+  --accent-red-dim: var(--accent-primary-dim);
+  --accent-blue: var(--accent-primary);
+  --accent-blue-dim: var(--accent-primary-dim);
+  --status-error: #c81032;
+  --status-error-dim: rgba(200, 16, 50, 0.11);
+  --status-info: #b42343;
+  --status-info-dim: rgba(180, 35, 67, 0.1);
+  --notification-ring: rgba(255, 255, 255, 0.76);
+  --voice-idle: #c81032;
+  --voice-listening: #ad0c2b;
+  --voice-transcribing: #8f0a26;
+  --elevation-raised: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 8px 24px rgba(71, 15, 25, 0.12);
+  --elevation-floating: 0 20px 60px rgba(71, 15, 25, 0.18);
+}
+
+/* Role and permission visibility contract. */
+[data-permission] { transition: opacity var(--motion-fast); }
+body[data-role="viewer"] [data-permission="write"],
+body[data-role="viewer"] [data-permission="admin"],
+body[data-role="operator"] [data-permission="admin"] {
+  display: none !important;
+}
+
+/* Shared state treatments. */
+.badge-dot {
+  background: var(--notification-bg);
+  color: var(--notification-text);
+  border-color: var(--notification-ring);
+}
+.live-tag {
+  color: var(--live-color);
+  background: var(--live-bg);
+}
+.live-dot {
+  background: var(--live-color);
+  animation-duration: var(--live-pulse-duration);
+}
+body[data-voice-state="idle"] .mic-core { --voice-current: var(--voice-idle); }
+body[data-voice-state="listening"] .mic-core { --voice-current: var(--voice-listening); }
+body[data-voice-state="transcribing"] .mic-core { --voice-current: var(--voice-transcribing); }
+body[data-voice-state="error"] .mic-core { --voice-current: var(--voice-error); }

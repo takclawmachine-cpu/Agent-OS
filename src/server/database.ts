@@ -1,0 +1,178 @@
+import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
+
+const schema = `
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','editor','viewer','guest')), created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, environment TEXT NOT NULL DEFAULT 'Local', version INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT, purge_after TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, model TEXT NOT NULL,
+  status TEXT NOT NULL, completed INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, text TEXT NOT NULL, completed INTEGER NOT NULL DEFAULT 0,
+  link_type TEXT NOT NULL DEFAULT 'none', link_id TEXT, version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS plans (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, owner TEXT NOT NULL, status TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cron_jobs (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, schedule TEXT NOT NULL,
+  next_run TEXT, status TEXT NOT NULL, job_type TEXT NOT NULL DEFAULT 'general'
+);
+CREATE TABLE IF NOT EXISTS mail_logs (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, recipient TEXT NOT NULL, subject TEXT NOT NULL,
+  status TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS token_usage (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, provider TEXT NOT NULL, model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, cost REAL NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS api_connections (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, provider TEXT NOT NULL, status TEXT NOT NULL,
+  latency_ms INTEGER, checked_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, user_id TEXT NOT NULL, action TEXT NOT NULL,
+  resource_type TEXT NOT NULL, resource_id TEXT, metadata_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, title TEXT NOT NULL, detail TEXT NOT NULL,
+  severity TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, user_id TEXT,
+  sender TEXT NOT NULL, text TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS preview_states (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, state TEXT NOT NULL, url TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS project_preferences (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, preferences_json TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS search_entries (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, kind TEXT NOT NULL, title TEXT NOT NULL,
+  body TEXT NOT NULL, resource_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS vault_note_versions (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, note_path TEXT NOT NULL, version INTEGER NOT NULL,
+  content TEXT NOT NULL, author_id TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id, note_path, version)
+);
+CREATE TABLE IF NOT EXISTS usage_caps (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, monthly_cap REAL NOT NULL, alert_threshold INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS digest_configs (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, cadence TEXT NOT NULL, delivery_time TEXT NOT NULL,
+  modules_json TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS handoffs (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, from_agent_id TEXT NOT NULL REFERENCES agents(id),
+  to_agent_id TEXT NOT NULL REFERENCES agents(id), task_id TEXT REFERENCES tasks(id), context_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS environments (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, endpoint TEXT NOT NULL,
+  status TEXT NOT NULL, UNIQUE(project_id, name)
+);
+CREATE TABLE IF NOT EXISTS github_repositories (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, provider_id TEXT, name TEXT NOT NULL,
+  full_name TEXT NOT NULL, branch TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS skills (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, category TEXT NOT NULL, description TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS agent_skills (
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE, skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  assigned_at TEXT NOT NULL, PRIMARY KEY(agent_id, skill_id)
+);
+CREATE TABLE IF NOT EXISTS terminal_commands (
+  id TEXT PRIMARY KEY, session_id TEXT NOT NULL, user_id TEXT NOT NULL, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  command TEXT NOT NULL, output TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS reports (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, config_json TEXT NOT NULL,
+  snapshot_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id TEXT PRIMARY KEY, repository_id TEXT REFERENCES github_repositories(id) ON DELETE SET NULL, provider TEXT NOT NULL,
+  delivery_id TEXT NOT NULL UNIQUE, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, received_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS backup_records (
+  id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, location TEXT NOT NULL, size_bytes INTEGER NOT NULL,
+  status TEXT NOT NULL, checksum TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS backup_drills (
+  id TEXT PRIMARY KEY, backup_id TEXT REFERENCES backup_records(id) ON DELETE SET NULL, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  outcome TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS realtime_events (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, occurred_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_realtime_project_sequence ON realtime_events(project_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_audit_project_created ON audit_logs(project_id, created_at);
+`;
+
+export type AgentDatabase = Database.Database;
+
+export function createDatabase(filename = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd(), "data", "agent-os.db")) {
+  if (filename !== ":memory:") fs.mkdirSync(path.dirname(filename), { recursive: true });
+  const database = new Database(filename);
+  database.exec(schema);
+  removeLegacyDemoData(database);
+  return database;
+}
+
+function removeLegacyDemoData(database: AgentDatabase) {
+  database.transaction(() => {
+    database.prepare(`DELETE FROM chat_messages
+    WHERE id = 'chat-1' AND project_id = 'agent-os' AND user_id IS NULL AND sender = 'agent'
+      AND text = 'Project context loaded. Phase 2 backend is active.'`).run();
+    database.prepare(`DELETE FROM github_repositories
+    WHERE id = 'repo-1' AND project_id = 'agent-os' AND provider_id IS NULL AND name = 'agent-os'
+      AND full_name = 'local/agent-os' AND branch = 'main'
+      AND NOT EXISTS (SELECT 1 FROM webhook_events WHERE repository_id = github_repositories.id)`).run();
+    database.prepare(`DELETE FROM plans
+    WHERE id = 'plan-1' AND project_id = 'agent-os' AND name = 'Phase 2 backend migration'
+      AND owner = 'Hermes' AND status = 'in-review' AND version = 1
+      AND NOT EXISTS (SELECT 1 FROM tasks WHERE link_type = 'plan' AND link_id = plans.id)`).run();
+    database.prepare(`DELETE FROM agents
+    WHERE project_id = 'agent-os'
+      AND ((id = 'agent-1' AND name = 'Hermes' AND model = 'Orchestrator' AND status = 'working' AND completed = 28)
+        OR (id = 'agent-2' AND name = 'Frontend Agent' AND model = 'GPT-5.3-Codex' AND status = 'working' AND completed = 12)
+        OR (id = 'agent-3' AND name = 'Research Agent' AND model = 'GPT-5.3' AND status = 'idle' AND completed = 8))
+      AND NOT EXISTS (SELECT 1 FROM agent_skills WHERE agent_id = agents.id)
+      AND NOT EXISTS (SELECT 1 FROM handoffs WHERE from_agent_id = agents.id OR to_agent_id = agents.id)`).run();
+    database.prepare("DELETE FROM cron_jobs WHERE id = 'cron-backup' AND project_id = 'agent-os' AND name = 'Daily database backup' AND schedule = '0 2 * * *' AND job_type = 'backup'").run();
+    database.prepare("DELETE FROM skills WHERE id LIKE 'skill-%' AND description = name || ' capability' AND NOT EXISTS (SELECT 1 FROM agent_skills WHERE skill_id = skills.id)").run();
+    database.prepare("DELETE FROM users WHERE id = 'demo-admin' AND email = 'admin@agentos.demo' AND name = 'Harsh Malik' AND role = 'admin'").run();
+  })();
+}
+
+let singleton: AgentDatabase | null = null;
+
+export function getDatabase() {
+  singleton ??= createDatabase();
+  return singleton;
+}
+
+export function closeDatabase() {
+  singleton?.close();
+  singleton = null;
+}
+
+export function upsertOwner(database: AgentDatabase, owner: { id: string; email: string; name: string }) {
+  const createdAt = database.prepare("SELECT created_at FROM users WHERE id = ?").pluck().get(owner.id) as string | undefined;
+  database.prepare(`INSERT INTO users (id, email, name, role, created_at) VALUES (?, ?, ?, 'admin', ?)
+    ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name, role = 'admin'`)
+    .run(owner.id, owner.email, owner.name, createdAt ?? new Date().toISOString());
+}
