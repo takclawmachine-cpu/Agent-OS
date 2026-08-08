@@ -4,6 +4,7 @@ Generated from note frontmatter. Do not edit manually.
 
 | type | id | title | phase | related_tasks | status | updated | link |
 |---|---|---|---:|---|---|---|---|
+| decision | 0018-secure-configuration-zero-demo | Secure Configuration And Zero-Demo Startup | 4 | 2.9, 3, 4, 5, 6 | active | 2026-08-08 | [open](0018-secure-configuration-zero-demo.md) |
 | decision | 0017-security-recovery-boundaries | Security And Recovery Boundaries | 3 | 1, 2, 3, 4, 5, 6 | active | 2026-08-07 | [open](0017-security-recovery-boundaries.md) |
 | decision | 0016-provider-realtime-boundaries | Provider and Realtime Boundaries | 2 | 2, 4.1, 5.7-5.9, 6.9-6.15 | active | 2026-08-07 | [open](0016-provider-realtime-boundaries.md) |
 | decision | 0015-sqlite-backend-authority | SQLite Backend Authority | 2 | 1, 3, 4, 5.1-5.6, 5.10-5.12 | active | 2026-08-07 | [open](0015-sqlite-backend-authority.md) |

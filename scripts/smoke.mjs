@@ -1,5 +1,13 @@
+import fs from "node:fs";
+
+if (fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
+
 const baseUrl = (process.env.STAGING_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const requireHermes = process.argv.includes("--hermes") || process.env.SMOKE_REQUIRE_HERMES === "true";
+const ownerEmail = process.env.AGENT_OS_OWNER_EMAIL;
+const ownerPassword = process.env.SMOKE_OWNER_PASSWORD;
+
+if (!ownerEmail || !ownerPassword) throw new Error("Set AGENT_OS_OWNER_EMAIL and temporary SMOKE_OWNER_PASSWORD values before running smoke tests.");
 
 async function request(pathname, init) {
   const headers = new Headers(init?.headers);
@@ -13,7 +21,7 @@ async function request(pathname, init) {
 const login = await fetch(`${baseUrl}/api/auth/session`, {
   method: "POST",
   headers: { "content-type": "application/json", origin: baseUrl },
-  body: JSON.stringify({ email: "admin@agentos.demo", password: "jarvis2026" }),
+  body: JSON.stringify({ email: ownerEmail, password: ownerPassword }),
 });
 if (!login.ok) throw new Error(`Session login returned ${login.status}`);
 const sessionCookie = login.headers.get("set-cookie")?.split(";", 1)[0];

@@ -1,5 +1,5 @@
-import { OnboardingScreen } from "@/components/onboarding-screen";
+import { WorkspaceOnboarding } from "@/components/workspace-onboarding";
 
 export default function OnboardingPage() {
-  return <OnboardingScreen />;
+  return <WorkspaceOnboarding />;
 }

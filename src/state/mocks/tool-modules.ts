@@ -21,7 +21,7 @@ const skillIds: Record<string, string> = {
 };
 
 const initialToolModuleState: ToolModuleState = {
-  version: 2,
+  version: 3,
   todos: [],
   skillAssignments: {},
   terminal: [],
@@ -67,8 +67,8 @@ export function useToolModuleStore() {
   const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
-    () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
-    () => "agent-os",
+    () => window.localStorage.getItem(PROJECT_KEY) ?? "",
+    () => "",
   );
   const stateJson = useSyncExternalStore(
     (callback) => subscribe(TOOL_EVENT, callback),
@@ -85,6 +85,7 @@ export function useToolModuleStore() {
       .catch((error: unknown) => setPersistenceError(normalizeApiError(error)));
   }, []);
   const update = useCallback((mutate: (current: ToolModuleState) => ToolModuleState) => {
+    if (!projectId) return;
     const storageKey = key(projectId);
     const current = parse(window.localStorage.getItem(storageKey));
     const next = mutate(current);
@@ -115,6 +116,7 @@ export function useToolModuleStore() {
     });
   }, [projectId, trackPersistence]);
   useEffect(() => {
+    if (!projectId) return;
     void Promise.all([
       apiRequest<Array<{ id: string; text: string; completed: number; linkType: "none" | "plan" | "agent"; linkId: string; version: number }>>(`/api/todos?projectId=${projectId}`),
       apiRequest<Array<{ name: string; agentIds: string | null }>>(`/api/skills?projectId=${projectId}`),

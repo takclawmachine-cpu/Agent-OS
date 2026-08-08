@@ -2,14 +2,13 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import { reportReliabilityEvent, useReliability } from "@/components/reliability-provider";
+import { useReliability } from "@/components/reliability-provider";
 import {
   getRealtimeStatus,
   getServerRealtimeStatus,
   publishRealtimeEvent,
   type RealtimeChannel,
   type RealtimeEvent,
-  type RealtimeEventType,
   subscribeRealtimeStatus,
   updateRealtimeStatus,
 } from "@/lib/realtime";
@@ -26,33 +25,6 @@ const POLL_INTERVAL = Number.isFinite(configuredPollInterval) && configuredPollI
 const channels: RealtimeChannel[] = ["agent-status", "notifications", "status", "voice"];
 const backendMode = process.env.NEXT_PUBLIC_REALTIME_MODE === "websocket";
 
-function emitBatch(type: RealtimeEventType, missedTicks = 1) {
-  const projectId = window.localStorage.getItem(PROJECT_KEY) ?? "agent-os";
-  const previous = getRealtimeStatus();
-  let sequence = previous.lastSequence;
-  const occurredAt = new Date().toISOString();
-
-  channels.forEach((channel) => {
-    sequence += 1;
-    publishRealtimeEvent({
-      id: `${projectId}:${sequence}`,
-      sequence,
-      projectId,
-      channel,
-      type,
-      occurredAt,
-      payload: { missedTicks },
-    });
-  });
-
-  window.localStorage.setItem(LAST_PUSH_KEY, occurredAt);
-  updateRealtimeStatus({
-    ...previous,
-    lastSequence: sequence,
-    reconciledAt: type === "reconcile" ? occurredAt : previous.reconciledAt,
-  });
-}
-
 function receiveBackendEvent(event: RealtimeEvent) {
   publishRealtimeEvent({ ...event, payload: typeof event.payload === "string" ? JSON.parse(event.payload) : event.payload });
   const previous = getRealtimeStatus();
@@ -66,10 +38,14 @@ function startBackendTransport() {
   let pollTimer: number | null = null;
   let reconnectTimer: number | null = null;
   let disposed = false;
-  const projectId = () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os";
-  const persistedCursor = Number(window.localStorage.getItem(`${CURSOR_KEY}:${projectId()}`) ?? 0);
+  const projectId = () => window.localStorage.getItem(PROJECT_KEY) ?? "";
+  const persistedCursor = projectId() ? Number(window.localStorage.getItem(`${CURSOR_KEY}:${projectId()}`) ?? 0) : 0;
   if (persistedCursor > getRealtimeStatus().lastSequence) updateRealtimeStatus({ ...getRealtimeStatus(), lastSequence: persistedCursor });
   const poll = async () => {
+    if (!projectId()) {
+      updateRealtimeStatus({ ...getRealtimeStatus(), mode: "polling", connected: false });
+      return;
+    }
     try {
       const cursor = getRealtimeStatus().lastSequence;
       const response = await fetch(`/api/realtime?projectId=${projectId()}&cursor=${cursor}`);
@@ -86,7 +62,9 @@ function startBackendTransport() {
     void poll();
     pollTimer = window.setInterval(() => void poll(), POLL_INTERVAL);
   };
-  const subscribe = () => socket?.send(JSON.stringify({ type: "subscribe", projectId: projectId(), channels, cursor: getRealtimeStatus().lastSequence }));
+  const subscribe = () => {
+    if (projectId()) socket?.send(JSON.stringify({ type: "subscribe", projectId: projectId(), channels, cursor: getRealtimeStatus().lastSequence }));
+  };
   const connect = () => {
     if (disposed || window.localStorage.getItem(SOCKET_UNAVAILABLE_KEY) === "true") { startPolling(); return; }
     socket = new WebSocket(process.env.NEXT_PUBLIC_HERMES_WS_URL ?? "ws://127.0.0.1:8787/ws");
@@ -128,32 +106,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     if (backendMode) return startBackendTransport();
 
-    const usePolling = window.localStorage.getItem(SOCKET_UNAVAILABLE_KEY) === "true";
-    const mode = usePolling ? "polling" : "websocket";
-    const previous = getRealtimeStatus();
-    updateRealtimeStatus({ ...previous, mode, connected: true });
-
-    if (!previous.connected || previous.mode === "offline") {
-      const lastPush = Date.parse(window.localStorage.getItem(LAST_PUSH_KEY) ?? "");
-      const missedTicks = Number.isFinite(lastPush)
-        ? Math.max(1, Math.floor((Date.now() - lastPush) / PUSH_INTERVAL))
-        : 1;
-      emitBatch("reconcile", missedTicks);
-      reportReliabilityEvent({
-        kind: "reconnected",
-        level: "app",
-        source: "realtime-transport",
-        message: `Live stream resumed via ${mode}; missed updates reconciled.`,
-      });
-    }
-
-    const push = () => emitBatch(usePolling ? "snapshot" : "push");
-    const timer = window.setInterval(push, usePolling ? POLL_INTERVAL : PUSH_INTERVAL);
-    window.addEventListener(PROJECT_EVENT, push);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener(PROJECT_EVENT, push);
-    };
+    updateRealtimeStatus({ ...getRealtimeStatus(), mode: "offline", connected: false });
   }, [online]);
 
   return children;

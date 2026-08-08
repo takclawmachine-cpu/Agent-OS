@@ -21,7 +21,7 @@ Goal: A module must never present demo, cached, or fallback content as live back
   - [x] 2.6 Add an idempotent migration that removes only known demo records from existing databases
   - [x] 2.7 Preserve required system defaults: local user/project, preferences, caps, skill catalog, preview config, and backup schedule
   - [ ] 2.8 Replace static project, Vault, Search, Environment, and Skill UI datasets with backend responses
-  - [ ] 2.9 Move demo population into an explicit development-only seed/reset command
+  - [x] 2.9 Superseded by the zero-demo policy: no demo population or seed/reset command exists
 
 - [ ] **3. Error Management Architecture**
   - [x] 3.1 Add a typed `ApiError` carrying status, code, retryability, source, and a safe user message
@@ -70,8 +70,8 @@ Goal: A module must never present demo, cached, or fallback content as live back
 
 - Completed task groups: 1
 - Pending task groups: 5
-- Completed subtasks: 27
-- Pending subtasks: 23
+- Completed subtasks: 28
+- Pending subtasks: 22
 - Modules requiring state-matrix verification: 27
 
 ## Seed Classification
@@ -87,4 +87,4 @@ Opening an existing database runs the idempotent legacy cleanup during initializ
 
 ## Release Decision
 
-Phase 4 remains in progress. This checkpoint is safe to publish after lint, 47 tests, optimized build, standard production smoke, Hermes production smoke, and desktop/mobile browser checks passed. An explicit development demo seed/reset command remains intentionally pending under 2.9; normal startup never repopulates demo records.
+Phase 4 remains in progress. The 2026-08-08 security checkpoint passes lint, 54 tests, and an optimized build. Login is blocked until core owner settings and one AI option are configured; fixed demo credentials, automatic data seeds, simulated realtime events, and hardcoded project fallbacks are removed. Smoke, Docker, provider contracts, rollback, real-data conversion, and the complete module-state matrix remain pending.

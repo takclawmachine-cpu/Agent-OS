@@ -1,59 +1,63 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
-import { AUTH_EVENT, AUTH_SESSION_KEY, ONBOARDING_KEY, clearSession, parseOnboarding, parseSession } from "@/lib/auth";
+import { AUTH_EVENT, type AuthSession } from "@/lib/auth";
 
-function subscribe(callback: () => void) {
-  window.addEventListener(AUTH_EVENT, callback);
-  window.addEventListener("storage", callback);
-  return () => {
-    window.removeEventListener(AUTH_EVENT, callback);
-    window.removeEventListener("storage", callback);
-  };
-}
+const AuthSessionContext = createContext<AuthSession | null>(null);
 
-function getSnapshot() {
-  return window.localStorage.getItem(AUTH_SESSION_KEY);
+export function useAuthenticatedSession() {
+  return useContext(AuthSessionContext);
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
-  const sessionValue = useSyncExternalStore(subscribe, getSnapshot, () => null);
-  const session = parseSession(sessionValue);
   const isLogin = pathname === "/login";
-  const [serverCheckedSession, setServerCheckedSession] = useState<string | null>(null);
-  const serverChecked = !sessionValue || serverCheckedSession === sessionValue;
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (!hydrated || !sessionValue || serverChecked) return;
-    const controller = new AbortController();
-    fetch("/api/auth/session", { signal: controller.signal })
-      .then((response) => {
-        if (response.status === 401) clearSession();
-      })
-      .catch(() => undefined)
-      .finally(() => setServerCheckedSession(sessionValue));
-    return () => controller.abort();
-  }, [hydrated, serverChecked, sessionValue]);
+    let active = true;
+    const checkSession = () => {
+      setChecked(false);
+      fetch("/api/auth/session", { cache: "no-store" })
+        .then(async (response) => response.ok ? (await response.json() as { data: AuthSession }).data : null)
+        .catch(() => null)
+        .then((nextSession) => {
+          if (!active) return;
+          setSession(nextSession);
+          setChecked(true);
+        });
+    };
+    checkSession();
+    window.addEventListener(AUTH_EVENT, checkSession);
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_EVENT, checkSession);
+    };
+  }, []);
 
   useEffect(() => {
-    if (!hydrated || !serverChecked) return;
+    if (!checked) return;
     if (!isLogin && !session) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
     if (isLogin && session) {
-      const onboarding = parseOnboarding(window.localStorage.getItem(ONBOARDING_KEY));
-      router.replace(onboarding.completed ? "/dashboard" : "/onboarding");
+      router.replace(session.onboardingRequired ? "/onboarding" : "/dashboard");
     }
-  }, [hydrated, isLogin, pathname, router, serverChecked, session]);
+    if (session && pathname !== "/onboarding" && session.onboardingRequired) {
+      router.replace("/onboarding");
+    }
+    if (session && pathname === "/onboarding" && !session.onboardingRequired) {
+      router.replace("/dashboard");
+    }
+  }, [checked, isLogin, pathname, router, session]);
 
-  if (!hydrated || !serverChecked || (!isLogin && !session)) {
+  if (!checked || (!isLogin && !session)) {
     return <div className="session-check" role="status"><span className="spinner" />Checking session</div>;
   }
 
-  return children;
+  return <AuthSessionContext.Provider value={session}>{children}</AuthSessionContext.Provider>;
 }

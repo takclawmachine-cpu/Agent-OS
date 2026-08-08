@@ -40,19 +40,19 @@ const PROJECT_EVENT = "agent-os-project-change";
 const PROJECT_KEY = "agent-os-project";
 
 export const initialOperationalModuleState: OperationalModuleState = {
-  version: 3,
+  version: 4,
   notifications: [],
   preferences: {
-    desktopNotifications: true,
+    desktopNotifications: false,
     digestEmail: false,
     compactDensity: false,
-    liveUpdates: true,
+    liveUpdates: false,
   },
-  billing: { monthlyCap: 7500, alertThreshold: 80 },
+  billing: { monthlyCap: 0, alertThreshold: 0 },
   digests: {
     cadence: "daily",
     deliveryTime: "18:00",
-    modules: ["Agents", "Tokens", "GitHub", "Cron"],
+    modules: [],
     history: [],
   },
   environment: "Local",
@@ -98,8 +98,8 @@ export function useOperationalModuleStore() {
   const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
-    () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
-    () => "agent-os",
+    () => window.localStorage.getItem(PROJECT_KEY) ?? "",
+    () => "",
   );
   const stateJson = useSyncExternalStore(
     (callback) => subscribe(OPERATIONAL_EVENT, callback),
@@ -112,6 +112,7 @@ export function useOperationalModuleStore() {
     : { status: "loading" as const, metadata: apiMetadata };
 
   const update = useCallback((mutate: (current: OperationalModuleState) => OperationalModuleState) => {
+    if (!projectId) return;
     const key = operationalStorageKey(projectId);
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
@@ -124,6 +125,7 @@ export function useOperationalModuleStore() {
   }, [projectId]);
 
   useEffect(() => {
+    if (!projectId) return;
     void apiRequest<{ operational: OperationalModuleState }>(`/api/state?projectId=${projectId}`)
       .then((result) => {
         writeState(projectId, result.operational);

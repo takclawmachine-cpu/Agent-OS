@@ -37,7 +37,7 @@ const MODULE_EVENT = "agent-os-original-modules-change";
 const PROJECT_KEY = "agent-os-project";
 
 export const initialOriginalModuleState: OriginalModuleState = {
-  version: 4,
+  version: 5,
   mail: {
     sent: 0,
     failed: 0,
@@ -101,8 +101,8 @@ export function useOriginalModuleStore() {
   const [persistenceError, setPersistenceError] = useState<ApiError | null>(null);
   const projectId = useSyncExternalStore(
     (callback) => subscribe(PROJECT_EVENT, callback),
-    () => window.localStorage.getItem(PROJECT_KEY) ?? "agent-os",
-    () => "agent-os",
+    () => window.localStorage.getItem(PROJECT_KEY) ?? "",
+    () => "",
   );
   const stateJson = useSyncExternalStore(
     (callback) => subscribe(MODULE_EVENT, callback),
@@ -115,6 +115,7 @@ export function useOriginalModuleStore() {
     : { status: "loading" as const, metadata: apiMetadata };
 
   const update = useCallback((mutate: (current: OriginalModuleState) => OriginalModuleState) => {
+    if (!projectId) return;
     const key = projectStorageKey(projectId);
     const current = parseState(window.localStorage.getItem(key));
     const next = mutate(current);
@@ -127,6 +128,7 @@ export function useOriginalModuleStore() {
   }, [projectId]);
 
   useEffect(() => {
+    if (!projectId) return;
     void apiRequest<{ original: OriginalModuleState }>(`/api/state?projectId=${projectId}`)
       .then((result) => {
         writeState(projectId, result.original);

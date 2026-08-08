@@ -4,7 +4,12 @@ import { createDatabase, type AgentDatabase } from "@/server/database";
 import { readModuleState, writeModuleState } from "@/server/module-state";
 
 let database: AgentDatabase;
-beforeEach(() => { database = createDatabase(":memory:"); });
+beforeEach(() => {
+  database = createDatabase(":memory:");
+  const now = new Date().toISOString();
+  database.prepare("INSERT INTO projects (id, name, environment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("agent-os", "Test Project", "Local", now, now);
+  database.prepare("INSERT INTO skills VALUES (?, ?, ?, ?)").run("skill-git", "Git", "Engineering", "Test fixture");
+});
 afterEach(() => database.close());
 
 describe("module state migration", () => {

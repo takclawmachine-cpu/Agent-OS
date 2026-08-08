@@ -122,59 +122,40 @@ CREATE INDEX IF NOT EXISTS idx_realtime_project_sequence ON realtime_events(proj
 CREATE INDEX IF NOT EXISTS idx_audit_project_created ON audit_logs(project_id, created_at);
 `;
 
-const skillSeed = [
-  ["skill-git", "Git", "Engineering"], ["skill-next", "Next.js", "Engineering"],
-  ["skill-fastapi", "FastAPI", "Engineering"], ["skill-docker", "Docker", "Operations"],
-  ["skill-sql", "SQL", "Data"], ["skill-prompts", "Prompt Engineering", "AI"],
-  ["skill-testing", "Testing", "Quality"], ["skill-deploy", "Deployment", "Operations"],
-] as const;
-
 export type AgentDatabase = Database.Database;
 
 export function createDatabase(filename = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd(), "data", "agent-os.db")) {
   if (filename !== ":memory:") fs.mkdirSync(path.dirname(filename), { recursive: true });
   const database = new Database(filename);
   database.exec(schema);
-  seedDatabase(database);
+  removeLegacyDemoData(database);
   return database;
 }
 
-function seedDatabase(database: AgentDatabase) {
-  const now = new Date().toISOString();
-  const seed = database.transaction(() => {
-    database.prepare("INSERT OR IGNORE INTO users VALUES (?, ?, ?, ?, ?)").run("demo-admin", "admin@agentos.demo", "Harsh Malik", "admin", now);
-    database.prepare("INSERT OR IGNORE INTO projects (id, name, environment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("agent-os", "Agent OS", "Local", now, now);
-    database.prepare("INSERT OR IGNORE INTO usage_caps VALUES (?, ?, ?, ?)").run("agent-os", 7500, 80, now);
-    database.prepare("INSERT OR IGNORE INTO digest_configs VALUES (?, ?, ?, ?, ?)").run("agent-os", "daily", "18:00", JSON.stringify(["Agents", "Tokens", "GitHub", "Cron"]), now);
-    database.prepare("INSERT OR IGNORE INTO preview_states VALUES (?, ?, ?, ?)").run("agent-os", "empty", "http://127.0.0.1:3000/dashboard", now);
-    database.prepare("INSERT OR IGNORE INTO project_preferences VALUES (?, ?, ?)").run("agent-os", JSON.stringify({ desktopNotifications: true, digestEmail: false, compactDensity: false, liveUpdates: true }), now);
-    const insertSkill = database.prepare("INSERT OR IGNORE INTO skills VALUES (?, ?, ?, ?)");
-    skillSeed.forEach(([id, name, category]) => insertSkill.run(id, name, category, `${name} capability`));
-    database.prepare("INSERT OR IGNORE INTO cron_jobs VALUES (?, ?, ?, ?, ?, ?, ?)").run("cron-backup", "agent-os", "Daily database backup", "0 2 * * *", "02:00", "active", "backup");
-    removeLegacyDemoData(database);
-  });
-  seed();
-}
-
 function removeLegacyDemoData(database: AgentDatabase) {
-  database.prepare(`DELETE FROM chat_messages
+  database.transaction(() => {
+    database.prepare(`DELETE FROM chat_messages
     WHERE id = 'chat-1' AND project_id = 'agent-os' AND user_id IS NULL AND sender = 'agent'
       AND text = 'Project context loaded. Phase 2 backend is active.'`).run();
-  database.prepare(`DELETE FROM github_repositories
+    database.prepare(`DELETE FROM github_repositories
     WHERE id = 'repo-1' AND project_id = 'agent-os' AND provider_id IS NULL AND name = 'agent-os'
       AND full_name = 'local/agent-os' AND branch = 'main'
       AND NOT EXISTS (SELECT 1 FROM webhook_events WHERE repository_id = github_repositories.id)`).run();
-  database.prepare(`DELETE FROM plans
+    database.prepare(`DELETE FROM plans
     WHERE id = 'plan-1' AND project_id = 'agent-os' AND name = 'Phase 2 backend migration'
       AND owner = 'Hermes' AND status = 'in-review' AND version = 1
       AND NOT EXISTS (SELECT 1 FROM tasks WHERE link_type = 'plan' AND link_id = plans.id)`).run();
-  database.prepare(`DELETE FROM agents
+    database.prepare(`DELETE FROM agents
     WHERE project_id = 'agent-os'
       AND ((id = 'agent-1' AND name = 'Hermes' AND model = 'Orchestrator' AND status = 'working' AND completed = 28)
         OR (id = 'agent-2' AND name = 'Frontend Agent' AND model = 'GPT-5.3-Codex' AND status = 'working' AND completed = 12)
         OR (id = 'agent-3' AND name = 'Research Agent' AND model = 'GPT-5.3' AND status = 'idle' AND completed = 8))
       AND NOT EXISTS (SELECT 1 FROM agent_skills WHERE agent_id = agents.id)
       AND NOT EXISTS (SELECT 1 FROM handoffs WHERE from_agent_id = agents.id OR to_agent_id = agents.id)`).run();
+    database.prepare("DELETE FROM cron_jobs WHERE id = 'cron-backup' AND project_id = 'agent-os' AND name = 'Daily database backup' AND schedule = '0 2 * * *' AND job_type = 'backup'").run();
+    database.prepare("DELETE FROM skills WHERE id LIKE 'skill-%' AND description = name || ' capability' AND NOT EXISTS (SELECT 1 FROM agent_skills WHERE skill_id = skills.id)").run();
+    database.prepare("DELETE FROM users WHERE id = 'demo-admin' AND email = 'admin@agentos.demo' AND name = 'Harsh Malik' AND role = 'admin'").run();
+  })();
 }
 
 let singleton: AgentDatabase | null = null;
@@ -187,4 +168,11 @@ export function getDatabase() {
 export function closeDatabase() {
   singleton?.close();
   singleton = null;
+}
+
+export function upsertOwner(database: AgentDatabase, owner: { id: string; email: string; name: string }) {
+  const createdAt = database.prepare("SELECT created_at FROM users WHERE id = ?").pluck().get(owner.id) as string | undefined;
+  database.prepare(`INSERT INTO users (id, email, name, role, created_at) VALUES (?, ?, ?, 'admin', ?)
+    ON CONFLICT(id) DO UPDATE SET email = excluded.email, name = excluded.name, role = 'admin'`)
+    .run(owner.id, owner.email, owner.name, createdAt ?? new Date().toISOString());
 }

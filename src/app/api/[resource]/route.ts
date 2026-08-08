@@ -33,7 +33,9 @@ const allowedReadTables: Record<string, string> = {
 const adminLogResources = new Set(["audit", "backups", "backup-drills", "terminal", "webhooks"]);
 
 function projectId(request: Request) {
-  return new URL(request.url).searchParams.get("projectId") ?? request.headers.get("x-project-id") ?? "agent-os";
+  const id = new URL(request.url).searchParams.get("projectId") ?? request.headers.get("x-project-id");
+  if (!id) throw new HttpError(400, "A project must be selected.");
+  return id;
 }
 
 export async function GET(request: Request, context: RouteContext<"/api/[resource]">) {
@@ -42,12 +44,12 @@ export async function GET(request: Request, context: RouteContext<"/api/[resourc
     const { resource } = await context.params;
     enforceRateLimit(`api:read:${session.userId}`, 300, 60_000);
     const database = getDatabase();
-    const project = projectId(request);
     requirePermission(session.role, "read");
+    if (resource === "projects") return Response.json({ data: database.prepare("SELECT id, name, environment FROM projects WHERE deleted_at IS NULL ORDER BY created_at").all() });
+    const project = projectId(request);
     if (resource === "todos") return Response.json({ data: listTodos(database, project) });
     if (resource === "state") return Response.json({ data: readModuleState(database, project) });
     if (resource === "skills") return Response.json({ data: listSkills(database, project) });
-    if (resource === "projects") return Response.json({ data: database.prepare("SELECT id, name, environment FROM projects WHERE deleted_at IS NULL ORDER BY created_at").all() });
     if (resource === "providers" || resource === "status") {
       const health = await checkProviders();
       const save = database.prepare("INSERT INTO api_connections VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,latency_ms=excluded.latency_ms,checked_at=excluded.checked_at");
@@ -75,9 +77,19 @@ export async function POST(request: Request, context: RouteContext<"/api/[resour
     const { resource } = await context.params;
     enforceRateLimit(`api:write:${session.userId}`, 120, 60_000);
     const database = getDatabase();
-    const project = projectId(request);
     const role = session.role;
     const body = await readJson<Record<string, unknown>>(request);
+    if (resource === "projects" && body.action === "create") {
+      requirePermission(role, "write");
+      const name = String(body.name ?? "").trim();
+      if (name.length < 2 || name.length > 80) throw new HttpError(400, "Project name must contain between 2 and 80 characters.");
+      const id = crypto.randomUUID();
+      const timestamp = new Date().toISOString();
+      database.prepare("INSERT INTO projects (id, name, environment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(id, name, process.env.AGENT_OS_ENVIRONMENT ?? "Local", timestamp, timestamp);
+      audit(database, id, session.userId, "project.create", "project", id, { name });
+      return Response.json({ data: { id, name, environment: process.env.AGENT_OS_ENVIRONMENT ?? "Local" } }, { status: 201 });
+    }
+    const project = projectId(request);
     if (resource === "providers") {
       requirePermission(role, "write");
       if (body.action === "mail") {

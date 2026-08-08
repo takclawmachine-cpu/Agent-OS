@@ -4,22 +4,19 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { useAuthenticatedSession } from "@/components/auth-gate";
 import { Icon } from "@/components/icon";
 import { NeuralField } from "@/components/neural-field";
 import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
-import { ONBOARDING_EVENT, ONBOARDING_KEY, clearSession, defaultOnboardingState, parseOnboarding } from "@/lib/auth";
+import { notifyAuthChanged } from "@/lib/auth";
 import { moduleGroups, modules } from "@/lib/modules";
 import { startVoiceCapture, useVoiceState } from "@/lib/voice";
 import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
 import { useOriginalModuleStore } from "@/state/mocks/original-modules";
 
 type Project = { id: string; name: string; environment: string };
-
-const defaultProjects: Project[] = [
-  { id: "agent-os", name: "Agent OS", environment: "Local" },
-];
 
 const projectEvent = "agent-os-project-change";
 const themeEvent = "agent-os-theme-change";
@@ -51,12 +48,13 @@ function parseRecentProjects(value: string, fallback: string[]) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const session = useAuthenticatedSession();
   const operations = useOperationalModuleStore();
   const original = useOriginalModuleStore();
   const realtime = useRealtimeStatus();
   const { online } = useReliability();
   const voiceState = useVoiceState();
-  const [projects, setProjects] = useState<Project[]>(defaultProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [projectsError, setProjectsError] = useState<ApiError | null>(null);
   const [projectOpen, setProjectOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -65,28 +63,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeProjectId = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
-    () => readStorage("agent-os-project", defaultProjects[0].id),
-    () => defaultProjects[0].id,
+    () => readStorage("agent-os-project", ""),
+    () => "",
   );
   const recentProjectIds = useSyncExternalStore(
     (callback) => subscribe(projectEvent, callback),
-    () => readStorage("agent-os-project-history", JSON.stringify(defaultProjects.map((project) => project.id))),
-    () => JSON.stringify(defaultProjects.map((project) => project.id)),
+    () => readStorage("agent-os-project-history", "[]"),
+    () => "[]",
   );
   const theme = useSyncExternalStore(
     (callback) => subscribe(themeEvent, callback),
     () => readStorage("agent-os-theme", "dark"),
     () => "dark",
   );
-  const onboardingValue = useSyncExternalStore(
-    (callback) => subscribe(ONBOARDING_EVENT, callback),
-    () => readStorage(ONBOARDING_KEY, JSON.stringify(defaultOnboardingState)),
-    () => JSON.stringify(defaultOnboardingState),
-  );
-
-  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? defaultProjects[0];
-  const onboarding = parseOnboarding(onboardingValue);
-  const activeProjectName = activeProject.id === "agent-os" ? onboarding.projectName || activeProject.name : activeProject.name;
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  const activeProjectName = activeProject?.name ?? "No workspace";
   const unreadNotifications = operations.state.notifications.filter((notification) => !notification.read).length;
   const recentProjects = parseRecentProjects(recentProjectIds, projects.map((project) => project.id));
   const projectOrder = [...recentProjects, ...projects.map((project) => project.id).filter((id) => !recentProjects.includes(id))];
@@ -120,8 +111,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void apiRequest<Project[]>("/api/projects")
       .then((result) => {
-        setProjects(result.length ? result : defaultProjects);
+        setProjects(result);
         setProjectsError(null);
+        const selected = window.localStorage.getItem("agent-os-project");
+        if (result.length && !result.some((project) => project.id === selected)) {
+          window.localStorage.setItem("agent-os-project", result[0].id);
+          window.localStorage.setItem("agent-os-project-history", JSON.stringify([result[0].id]));
+          window.dispatchEvent(new Event(projectEvent));
+        }
       })
       .catch((error: unknown) => setProjectsError(normalizeApiError(error, "/api/projects")));
   }, []);
@@ -156,9 +153,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = () => {
-    void fetch("/api/auth/session", { method: "DELETE" });
-    clearSession();
-    router.replace("/login");
+    void fetch("/api/auth/session", { method: "DELETE" }).finally(() => {
+      notifyAuthChanged();
+      router.replace("/login");
+    });
   };
 
   if (pathname === "/login" || pathname === "/onboarding") {
@@ -177,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span><strong>AGENT OS</strong><small>LOCAL COMMAND</small></span>
         </div>
 
-        {projects.length ? (
+        {projects.length && activeProject ? (
           <div className="project-switcher">
             <button type="button" className="project-trigger" onClick={() => setProjectOpen((open) => !open)} aria-expanded={projectOpen}>
               <Icon name="folder" size={16} />
@@ -191,7 +189,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {orderedProjects.map((project) => (
                   <button type="button" key={project.id} onClick={() => selectProject(project.id)} className={project.id === activeProject.id ? "is-active" : ""}>
                     <Icon name="folder" size={16} />
-                    <span><strong>{project.id === "agent-os" ? onboarding.projectName || project.name : project.name}</strong><small>{project.environment}</small></span>
+                    <span><strong>{project.name}</strong><small>{project.environment}</small></span>
                   </button>
                 ))}
               </div>
@@ -218,7 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {unreadNotifications ? <span className="badge-dot">{unreadNotifications}</span> : null}
           </Link>
           <button className="profile" type="button" onClick={signOut} title="Sign out">
-            <span>HM</span><span><strong>Harsh Malik</strong><small>Admin</small></span><Icon name="logout" size={15} />
+            <span>{session?.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "OS"}</span><span><strong>{session?.name ?? "Owner"}</strong><small>{session?.role ?? "admin"}</small></span><Icon name="logout" size={15} />
           </button>
         </div>
       </header>

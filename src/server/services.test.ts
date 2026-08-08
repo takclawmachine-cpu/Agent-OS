@@ -16,6 +16,9 @@ let database: AgentDatabase;
 
 beforeEach(() => {
   database = createDatabase(":memory:");
+  const now = new Date().toISOString();
+  database.prepare("INSERT INTO projects (id, name, environment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("agent-os", "Test Project", "Local", now, now);
+  database.prepare("INSERT INTO usage_caps VALUES (?, ?, ?, ?)").run("agent-os", 7500, 80, now);
   const insertAgent = database.prepare("INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?)");
   insertAgent.run("agent-1", "agent-os", "Test Coordinator", "test-model", "idle", 0);
   insertAgent.run("agent-2", "agent-os", "Test Specialist", "test-model", "idle", 0);
@@ -72,6 +75,8 @@ describe("backend policies and services", () => {
     const source = path.join(directory, "source.db");
     database.close();
     database = createDatabase(source);
+    const now = new Date().toISOString();
+    database.prepare("INSERT INTO projects (id, name, environment, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("agent-os", "Backup Test", "Local", now, now);
     createTodo(database, "agent-os", { text: "Included in backup" }, "admin");
     const backup = await createBackup(database, "agent-os", directory, "demo-admin", "admin");
     expect(backup.sizeBytes).toBeGreaterThan(0);
