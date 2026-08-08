@@ -56,6 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { online } = useReliability();
   const { openProjectPanel } = useProjectPanels();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<ApiError | null>(null);
   const [projectOpen, setProjectOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -114,6 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     void apiRequest<Project[]>("/api/projects")
       .then((result) => {
         setProjects(result);
+        setProjectsLoading(false);
         setProjectsError(null);
         const selected = window.localStorage.getItem("agent-os-project");
         if (result.length && !result.some((project) => project.id === selected)) {
@@ -122,7 +124,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new Event(projectEvent));
         }
       })
-      .catch((error: unknown) => setProjectsError(normalizeApiError(error, "/api/projects")));
+      .catch((error: unknown) => {
+        setProjectsLoading(false);
+        setProjectsError(normalizeApiError(error, "/api/projects"));
+      });
   }, []);
 
   useEffect(() => {
@@ -163,6 +168,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (pathname === "/login" || pathname === "/onboarding") {
     return <div className="auth-shell"><NeuralField />{children}</div>;
+  }
+
+  if (projectsLoading) {
+    return <div className="session-check" role="status"><span className="spinner" />Loading workspace</div>;
   }
 
   return (
@@ -244,7 +253,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </footer>
       </aside>
 
-      <main className="shell-main" data-project={activeProject.id} data-environment={operations.state.environment}>{children}</main>
+      <main className="shell-main" data-project={activeProject?.id ?? ""} data-environment={operations.state.environment}>{children}</main>
 
       {commandOpen ? (
         <div className="command-overlay" role="presentation" onMouseDown={() => setCommandOpen(false)}>
