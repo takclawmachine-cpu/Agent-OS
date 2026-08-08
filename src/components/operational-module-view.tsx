@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useDeferredValue, useEffect, useState } from "react";
 
-import { ResourceStateGate } from "@/components/api-state";
+import { ApiNotConnectedState, ResourceStateGate } from "@/components/api-state";
 import { EmptyState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import { ModuleCard } from "@/components/module-card";
@@ -11,8 +11,8 @@ import { useRealtimeStatus } from "@/components/realtime-provider";
 import { useReliability } from "@/components/reliability-provider";
 import { apiRequest } from "@/lib/api-client";
 import { modules, type ModuleDefinition } from "@/lib/modules";
-import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
-import { useOriginalModuleStore } from "@/state/mocks/original-modules";
+import { useOperationalModuleStore } from "@/state/operational-modules";
+import { useOriginalModuleStore } from "@/state/original-modules";
 
 type OperationalStore = ReturnType<typeof useOperationalModuleStore>;
 
@@ -106,6 +106,13 @@ function Preference({ label, detail, checked, onChange }: { label: string; detai
 
 function StatusModule() {
   const original = useOriginalModuleStore();
+  const providers = original.state.apiStatus;
+  const allProvidersUnavailable = !providers.length || providers.every((provider) => ["disconnected", "error", "unconfigured", "unreachable"].includes(provider.status));
+  const disconnectedStatus = !providers.length || providers.every((provider) => provider.status === "unconfigured")
+    ? "unconfigured"
+    : providers.some((provider) => provider.status === "unreachable" || provider.status === "disconnected")
+      ? "unreachable"
+      : "error";
   const connected = original.state.apiStatus.filter((provider) => provider.status === "connected").length;
   const activeJobs = original.state.cron.jobs.filter((job) => job.status === "active").length;
   const services = [
@@ -117,7 +124,7 @@ function StatusModule() {
   const degraded = services.filter((service) => service.status === "Degraded").length;
   return <OperationalGrid stats={[["Operational", String(services.length - degraded)], ["Degraded", String(degraded)], ["Uptime", "99.98%"]]}>
     <ModuleCard title="Service Health" icon="status" eyebrow="Cross-module status" live className="module-layout__primary"><div className="service-grid">{services.map((service) => <div key={service.name}><StatusBadge status={service.status === "Operational" ? "success" : "warning"} text={service.status} /><span><strong>{service.name}</strong><small>{service.detail}</small></span></div>)}</div></ModuleCard>
-    <ModuleCard title="Provider Latency" icon="api" eyebrow="Latest local checks">{original.state.apiStatus.length ? <div className="compact-list">{original.state.apiStatus.map((provider) => <div key={provider.id}><StatusBadge status={provider.status === "connected" ? "success" : provider.status === "degraded" ? "warning" : "error"} text={provider.status} /><span><strong>{provider.name}</strong><small>{provider.latency ? `${provider.latency} ms` : "No response"}</small></span></div>)}</div> : <EmptyState module="status" actionHref="/api-status" />}</ModuleCard>
+    <ModuleCard title="Provider Latency" icon="api" eyebrow="Latest local checks">{allProvidersUnavailable ? <ApiNotConnectedState provider="Provider health" status={disconnectedStatus} configureHref="/settings" /> : <div className="compact-list">{providers.map((provider) => <div key={provider.id}><StatusBadge status={provider.status === "connected" ? "success" : provider.status === "degraded" ? "warning" : "error"} text={provider.status} /><span><strong>{provider.name}</strong><small>{provider.status === "unconfigured" ? "Not configured" : provider.latency ? `${provider.latency} ms` : "No response"}</small></span></div>)}</div>}</ModuleCard>
   </OperationalGrid>;
 }
 

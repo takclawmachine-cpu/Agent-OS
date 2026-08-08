@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { WebSocketServer } from "ws";
 
 import { assertConfigured } from "./runtime-config.mjs";
@@ -71,22 +71,22 @@ sockets.on("connection", (socket) => {
   });
 });
 
-const channels = ["agent-status", "notifications", "status", "voice"];
-setInterval(() => {
-  const projects = new Set(database.prepare("SELECT id FROM projects WHERE deleted_at IS NULL").all().map((project) => project.id));
-  for (const projectId of projects) {
-    for (const channel of channels) {
-      const event = { id: randomUUID(), projectId, channel, type: "push", payload: { source: "realtime-server" }, occurredAt: new Date().toISOString() };
-      const result = database.prepare("INSERT INTO realtime_events (id,project_id,channel,event_type,payload_json,occurred_at) VALUES (?,?,?,?,?,?)").run(event.id, projectId, channel, event.type, JSON.stringify(event.payload), event.occurredAt);
-      const envelope = JSON.stringify({ ...event, sequence: Number(result.lastInsertRowid) });
-      sockets.clients.forEach((socket) => { if (socket.readyState === 1 && socket.subscription?.projectId === projectId && socket.subscription.channels.has(channel)) socket.send(envelope); });
-    }
+let lastBroadcastSequence = Number(database.prepare("SELECT COALESCE(MAX(sequence), 0) FROM realtime_events").pluck().get());
+const deliveryTimer = setInterval(() => {
+  const events = database.prepare("SELECT sequence,id,project_id AS projectId,channel,event_type AS type,payload_json AS payload,occurred_at AS occurredAt FROM realtime_events WHERE sequence>? ORDER BY sequence LIMIT 1000").all(lastBroadcastSequence);
+  for (const event of events) {
+    const envelope = JSON.stringify({ ...event, payload: JSON.parse(event.payload) });
+    sockets.clients.forEach((socket) => {
+      if (socket.readyState === 1 && socket.subscription?.projectId === event.projectId && socket.subscription.channels.has(event.channel)) socket.send(envelope);
+    });
+    lastBroadcastSequence = event.sequence;
   }
 }, Number(process.env.HERMES_PUSH_INTERVAL_MS ?? 5000));
 
 server.listen(port, "127.0.0.1", () => console.log(`Agent OS realtime server ready on ws://127.0.0.1:${port}/ws`));
 
 function shutdown() {
+  clearInterval(deliveryTimer);
   sockets.close();
   server.close(() => { database.close(); process.exit(0); });
 }

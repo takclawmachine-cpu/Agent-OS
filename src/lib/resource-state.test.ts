@@ -14,6 +14,7 @@ describe("resolveResourceState", () => {
     { name: "idle", input: {}, expected: "idle" },
     { name: "loading", input: { loading: true }, expected: "loading" },
     { name: "ready-empty", input: { data: [] }, expected: "ready-empty" },
+    { name: "filtered-empty", input: { data: [], filtered: true }, expected: "filtered-empty" },
     { name: "ready-populated", input: { data: ["record"] }, expected: "ready-populated" },
     { name: "stale", input: { data: ["record"], staleAt: "2026-08-07T10:00:00.000Z" }, expected: "stale" },
     { name: "error", input: { error: { code: "request_failed", message: "Request failed." } }, expected: "error" },
@@ -52,5 +53,24 @@ describe("resolveResourceState", () => {
       metadata: { ...metadata, providerStatus: "unreachable" },
       staleAt: "2026-08-07T10:00:00.000Z",
     }).status).toBe("disconnected");
+  });
+
+  it("does not classify populated filtered data as empty", () => {
+    expect(resolveResourceState({
+      data: ["record"],
+      filtered: true,
+      isEmpty: (data) => data.length === 0,
+      metadata,
+    }).status).toBe("ready-populated");
+  });
+
+  it("prioritizes loading over filtered-empty", () => {
+    expect(resolveResourceState({
+      data: [],
+      filtered: true,
+      isEmpty: (data) => data.length === 0,
+      loading: true,
+      metadata,
+    }).status).toBe("loading");
   });
 });

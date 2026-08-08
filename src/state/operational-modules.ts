@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
-import { subscribeRealtimeEvents } from "@/lib/realtime";
 import { resolveResourceState, type ResourceMetadata, type ResourceState } from "@/lib/resource-state";
 
 export type OperationalModuleState = {
@@ -151,16 +150,6 @@ export function useOperationalModuleStore() {
         });
       });
   }, [projectId, refreshVersion]);
-
-  useEffect(() => {
-    return subscribeRealtimeEvents((event) => {
-      if (event.projectId !== projectId || event.channel !== "notifications") return;
-      update((current) => current.preferences.liveUpdates ? {
-        ...current,
-        notifications: current.notifications.map((notification, index) => index === 0 ? { ...notification, time: "Live now" } : notification),
-      } : current);
-    });
-  }, [projectId, update]);
 
   const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
 

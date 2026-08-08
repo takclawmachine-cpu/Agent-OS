@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
-import { subscribeRealtimeEvents } from "@/lib/realtime";
 import { resolveResourceState, type ProviderStatus, type ResourceMetadata, type ResourceState } from "@/lib/resource-state";
 
 export type Status = "success" | "warning" | "error" | "neutral";
@@ -151,19 +150,6 @@ export function useOriginalModuleStore() {
         });
       });
   }, [projectId, refreshVersion]);
-
-  useEffect(() => {
-    return subscribeRealtimeEvents((event) => {
-      if (event.projectId !== projectId || event.channel !== "agent-status") return;
-      const payload = event.payload as { missedTicks?: number };
-      const ticks = Math.max(1, payload.missedTicks ?? 1);
-      update((current) => ({
-        ...current,
-        liveProgress: current.liveProgress.map((work) => ({ ...work, percent: work.percent >= 99 ? work.percent : Math.min(99, work.percent + ticks) })),
-        tokens: { ...current.tokens, totalMillions: Number((current.tokens.totalMillions + (0.01 * ticks)).toFixed(2)) },
-      }));
-    });
-  }, [projectId, update]);
 
   const retryHydration = useCallback(() => setRefreshVersion((version) => version + 1), []);
 

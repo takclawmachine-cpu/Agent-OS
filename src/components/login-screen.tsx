@@ -58,19 +58,12 @@ export function LoginScreen() {
   return (
     <main className="auth-layout">
       <section className="auth-intro">
-        <span className="auth-kicker"><span className="live-dot" />Local intelligence layer</span>
-        <h1>Command your agents.<br /><span>Keep the context.</span></h1>
-        <p>One project-scoped interface for Hermes, specialist agents, operational tools, and indexed memory.</p>
-        <div className="auth-signal-grid" aria-hidden="true">
-          <span><strong>27</strong><small>Modules routed</small></span>
-          <span><strong>SQLite</strong><small>Persistent runtime</small></span>
-          <span><strong>5-state</strong><small>UI contract</small></span>
-        </div>
+        <h1>Command Center<br /><span>Keep the context.</span></h1>
       </section>
 
       <section className="auth-panel" aria-labelledby="login-title">
-        <header className="auth-panel__brand"><span className="brand-mark"><span /></span><span><strong>AGENT OS</strong><small>Secure local access</small></span></header>
-        <div className="auth-panel__heading"><span className="module-card__icon"><Icon name="lock" /></span><span><small>SESSION GATE</small><h2 id="login-title">Sign in to command</h2></span></div>
+        <header className="auth-panel__brand"><span className="brand-mark"><span /></span><span><strong>AGENT OS</strong></span></header>
+        <div className="auth-panel__heading"><span className="module-card__icon"><Icon name="lock" /></span><span><h2 id="login-title">Sign in to command</h2></span></div>
 
         {state === "setup-required" ? <div className="auth-banner" role="alert"><Icon name="settings" size={17} /><span><strong>Setup is required</strong><small>Complete the environment settings before signing in{setup?.missing.length ? `: ${setup.missing.join(", ")}` : "."}</small></span></div> : null}
         {state === "connection-error" ? <div className="auth-banner" role="alert"><Icon name="api" size={17} /><span><strong>Agent OS is unavailable</strong><small>Check the application connection and try again.</small></span></div> : null}
@@ -91,7 +84,7 @@ export function LoginScreen() {
           </button>
         </form>
 
-        <p className="auth-note">Owner access is configured securely by the person running this installation.</p>
+
       </section>
     </main>
   );

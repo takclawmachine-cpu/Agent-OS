@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +41,14 @@ function connect(url: string, cursor: number) {
   return socket;
 }
 
+function insertEvents(databasePath: string, channels: string[]) {
+  const database = new Database(databasePath);
+  const insert = database.prepare("INSERT INTO realtime_events (id,project_id,channel,event_type,payload_json,occurred_at) VALUES (?,?,?,?,?,?)");
+  const sequences = channels.map((channel) => Number(insert.run(randomUUID(), "agent-os", channel, "push", JSON.stringify({ source: "test" }), new Date().toISOString()).lastInsertRowid));
+  database.close();
+  return sequences;
+}
+
 describe("realtime server", () => {
   it("multiplexes channels and reconciles persisted events after reconnect", async () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-os-realtime-"));
@@ -74,7 +83,15 @@ describe("realtime server", () => {
     });
     expect(unauthorizedStatus).toBe(401);
 
+    insertEvents(databasePath, ["status"]);
     const first = connect(`ws://127.0.0.1:${port}/ws?token=realtime-test-token`, 0);
+    const initialReplay = await new Promise<{ type: string; sequence: number }>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Timed out waiting for initial reconciliation")), 3000);
+      first.once("message", (raw) => { clearTimeout(timeout); resolve(JSON.parse(String(raw))); });
+    });
+    expect(initialReplay.type).toBe("reconcile");
+
+    insertEvents(databasePath, ["agent-status", "notifications", "status", "voice"]);
     const received = await new Promise<Array<{ sequence: number; channel: string }>>((resolve, reject) => {
       const events: Array<{ sequence: number; channel: string }> = [];
       const timeout = setTimeout(() => reject(new Error("Timed out waiting for channel batch")), 3000);
@@ -86,18 +103,7 @@ describe("realtime server", () => {
     const cursor = Math.max(...received.map((event) => event.sequence));
     first.close();
 
-    await new Promise<void>((resolve, reject) => {
-      const started = Date.now();
-      const check = () => {
-        const database = new Database(databasePath, { readonly: true });
-        const count = Number(database.prepare("SELECT COUNT(*) FROM realtime_events WHERE sequence > ?").pluck().get(cursor));
-        database.close();
-        if (count >= 4) resolve();
-        else if (Date.now() - started > 3000) reject(new Error("No missed events were persisted"));
-        else setTimeout(check, 25);
-      };
-      check();
-    });
+    insertEvents(databasePath, ["agent-status"]);
 
     const second = connect(`ws://127.0.0.1:${port}/ws?token=realtime-test-token`, cursor);
     const replay = await new Promise<{ type: string; sequence: number }>((resolve, reject) => {

@@ -30,11 +30,13 @@ Agent OS is a secure, local-first AI project command center built with Next.js 1
 ## Current Feature State
 
 - Projects, Vault, Search, Environments, and Skills read persisted backend data.
-- State stores distinguish empty/populated/error states and roll back rejected optimistic changes without overwriting newer edits.
+- Production state stores live under `src/state`, distinguish empty/populated/error states, and roll back rejected optimistic changes without overwriting newer edits.
+- The shared resource-state resolver distinguishes true-empty from filtered-empty while preserving failure, disconnection, stale-data, and loading precedence.
 - Up to four movable project assistant panels restore locally after reload.
 - Each panel has immutable project identity, real summary data, contextual chat, persisted message/token attribution, and an explicit full-workspace action.
 - Explicit `open`, `show`, or `switch to` project commands require confirmation; ambiguous matches require selection.
 - Voice transcript events and voice APIs carry project identity. Only one capture can own the microphone at a time.
+- Realtime transport starts only for authenticated workspaces and delivers persisted domain events without mutating or persisting module state from heartbeat traffic.
 - Realtime still has one project subscription per socket; multi-panel subscription multiplexing remains pending.
 
 ## Ownership Map
@@ -49,7 +51,7 @@ Agent OS is a secure, local-first AI project command center built with Next.js 1
 | Context and project intent | `src/server/project-context.ts`, `src/server/project-assistant.ts`, `src/server/project-intent.ts` |
 | Voice | `src/lib/voice.ts`, `src/app/api/voice/*`, `src/components/voice-core.tsx` |
 | Realtime and scheduling | `src/components/realtime-provider.tsx`, `server/realtime.mjs`, `server/scheduler.mjs` |
-| Module state UI | `src/components/*-module-view.tsx`, `src/state/mocks/*.ts` |
+| Module state UI | `src/components/*-module-view.tsx`, `src/state/*.ts` |
 | Deployment | `Dockerfile`, `scripts/start-production.mjs`, `memory_bank/docs/security-operations.md` |
 
 ## Non-Negotiable Invariants
@@ -65,7 +67,7 @@ Agent OS is a secure, local-first AI project command center built with Next.js 1
 
 - Published checkpoints: `f7a3ed7` (state reliability) and `ed67fba` (multi-project assistant panels).
 - ESLint passes.
-- Vitest: 69 tests pass across 16 files.
+- Vitest: 73 tests pass across 17 files.
 - Optimized Next.js production build passes after clearing stale generated `.next` output when OneDrive locks it.
 - Staged secret scanning passes.
 - Docker runtime execution is not locally verified because Docker is unavailable in the current environment.
@@ -74,11 +76,10 @@ Agent OS is a secure, local-first AI project command center built with Next.js 1
 
 Use [Phase 4](../todos/phase-4.md) for granular status. Highest-value pending work:
 
-1. Rename production state modules out of `src/state/mocks`.
-2. Add exact failed-operation retry and stale-cache behavior.
-3. Complete provider capability and all-module state matrices.
-4. Add multi-project realtime subscriptions and panel resize controls.
-5. Add component/Playwright coverage and Docker runtime verification.
+1. Add exact failed-operation retry and stale-cache behavior.
+2. Complete the remaining provider capability and all-module state matrices.
+3. Add multi-project realtime subscriptions and panel resize controls.
+4. Add component/Playwright coverage and Docker runtime verification.
 
 ## Task Routing
 

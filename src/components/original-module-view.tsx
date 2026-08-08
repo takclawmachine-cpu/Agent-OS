@@ -21,11 +21,29 @@ import {
 import {
   type OriginalModuleState,
   useOriginalModuleStore,
-} from "@/state/mocks/original-modules";
+} from "@/state/original-modules";
 
 type VaultNote = { path: string; version: number; content: string; createdAt: string };
+type ApiProvider = OriginalModuleState["apiStatus"][number];
 
 const subscribeToOrigin = () => () => undefined;
+
+function providerDisconnectedStatus(providers: ApiProvider[]): "unconfigured" | "unreachable" | "error" {
+  if (!providers.length || providers.every((provider) => provider.status === "unconfigured")) return "unconfigured";
+  if (providers.some((provider) => provider.status === "unreachable" || provider.status === "disconnected")) return "unreachable";
+  return "error";
+}
+
+function allProvidersUnavailable(providers: ApiProvider[]) {
+  return !providers.length || providers.every((provider) => ["disconnected", "error", "unconfigured", "unreachable"].includes(provider.status));
+}
+
+function providerDetail(provider: ApiProvider) {
+  if (provider.status === "unconfigured") return "Not configured";
+  if (provider.status === "unreachable" || provider.status === "disconnected") return "No response";
+  if (provider.status === "error") return "Connection error";
+  return provider.latency ? `${provider.latency} ms` : "Connected";
+}
 
 export function OriginalModuleView({ module }: { module: ModuleDefinition }) {
   const store = useOriginalModuleStore();
@@ -202,19 +220,25 @@ function Dashboard({ projectId, state }: { projectId: string; state: OriginalMod
           icon="api"
           eyebrow="Connection matrix"
         >
-          <div className="compact-list">
-            {state.apiStatus.map((provider) => (
-              <div key={provider.id}>
-                <StatusBadge status={provider.status} />
-                <span>
-                  <strong>{provider.name}</strong>
-                  <small>
-                    {provider.latency ? `${provider.latency} ms` : "Offline"}
-                  </small>
-                </span>
-              </div>
-            ))}
-          </div>
+          {allProvidersUnavailable(state.apiStatus) ? (
+            <ApiNotConnectedState
+              provider="AI providers"
+              status={providerDisconnectedStatus(state.apiStatus)}
+              configureHref="/settings"
+            />
+          ) : (
+            <div className="compact-list">
+              {state.apiStatus.map((provider) => (
+                <div key={provider.id}>
+                  <StatusBadge status={provider.status} />
+                  <span>
+                    <strong>{provider.name}</strong>
+                    <small>{providerDetail(provider)}</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </ModuleCard>
       </section>
     </div>

@@ -20,15 +20,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" suppressHydrationWarning>
       <body data-role="admin" data-voice-state="idle">
         <ReliabilityProvider>
-          <RealtimeProvider>
-            <UndoProvider>
-              <AuthGate>
+          <UndoProvider>
+            <AuthGate>
+              <RealtimeProvider>
                 <ProjectPanelProvider>
                   <AppShell>{children}</AppShell>
                 </ProjectPanelProvider>
-              </AuthGate>
-            </UndoProvider>
-          </RealtimeProvider>
+              </RealtimeProvider>
+            </AuthGate>
+          </UndoProvider>
         </ReliabilityProvider>
       </body>
     </html>

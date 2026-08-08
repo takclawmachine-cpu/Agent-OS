@@ -12,7 +12,7 @@ Goal: A module must never present demo, cached, or fallback content as live back
   - [x] 1.5 Distinguish browser connectivity, Agent OS API health, realtime transport, and external-provider health
   - [x] 1.6 Add contract tests for every state transition and precedence rule
 
-- [ ] **2. Mock And Seed Data Cleanup**
+- [x] **2. Mock And Seed Data Cleanup**
   - [x] 2.1 Classify every seed as system default, explicit demo, user data, or test fixture
   - [x] 2.2 Replace populated original-module client fallbacks with neutral loading/empty defaults
   - [x] 2.3 Remove demo notifications and digest history from operational client defaults
@@ -35,7 +35,7 @@ Goal: A module must never present demo, cached, or fallback content as live back
 
 - [ ] **4. Relevant API-Not-Connected Card States**
   - [x] 4.1 Create reusable `ApiNotConnectedState` and `StaleDataNotice` components
-  - [ ] 4.2 Convert Dashboard provider health and Status/API Status cards
+  - [x] 4.2 Convert Dashboard provider health and Status/API Status cards
   - [x] 4.3 Convert Mail compose and delivery cards for SMTP configuration/reachability
   - [ ] 4.4 Convert Agent Working Status cards for realtime transport availability
   - [ ] 4.5 Convert Tokens and Billing cards for hosted-model provider availability
@@ -45,12 +45,12 @@ Goal: A module must never present demo, cached, or fallback content as live back
   - [ ] 4.9 Disable dependent actions while disconnected and expose the correct configure, retry, or reconnect action
 
 - [ ] **5. Complete Empty-State Matrix For All 27 Modules**
-  - [ ] 5.1 Add one state resolver that separates loading, true-empty, filtered-empty, populated, disconnected, error, and stale
+  - [x] 5.1 Add one state resolver that separates loading, true-empty, filtered-empty, populated, disconnected, error, and stale
   - [ ] 5.2 Complete Dashboard, Mail, Cron, Plans, and Browser Preview state branches
   - [ ] 5.3 Complete Agents, Agent Status, Tokens, API Status, GitHub, Chat, and Vault state branches
   - [ ] 5.4 Complete Notifications, Search, Settings, Onboarding, Status, Billing, Digests, and Environments state branches
   - [ ] 5.5 Complete Voice, To-Do, Skills, Terminal, API Explorer, Reports, and Preview App state branches
-  - [ ] 5.6 Make Search and list filters use filtered-empty without replacing the true-empty state
+  - [x] 5.6 Make Search and list filters use filtered-empty without replacing the true-empty state
   - [ ] 5.7 Ensure zero usage, zero notifications, and no provider configuration are represented as different states
   - [ ] 5.8 Ensure cached content remains visible only with an explicit stale indicator and timestamp
   - [ ] 5.9 Give every empty/disconnected/error state one relevant recovery or creation action
@@ -68,10 +68,10 @@ Goal: A module must never present demo, cached, or fallback content as live back
 
 ## Counts
 
-- Completed task groups: 1
-- Pending task groups: 5
-- Completed subtasks: 29
-- Pending subtasks: 21
+- Completed task groups: 2
+- Pending task groups: 4
+- Completed subtasks: 32
+- Pending subtasks: 18
 - Modules requiring state-matrix verification: 27
 
 ## Seed Classification
@@ -87,4 +87,4 @@ Opening an existing database runs the idempotent legacy cleanup during initializ
 
 ## Release Decision
 
-Phase 4 remains in progress. The latest 2026-08-08 checkpoint passes lint, 69 tests, secret scanning, and an optimized build. Login is configuration-gated; generated password hashes use a dotenv-safe format across Next.js, Node, Docker, and VPS environments while legacy injected hashes remain verifiable. Demo credentials, automatic records, simulated realtime events, and hardcoded project fallbacks are removed. Persisted Projects, Vault, Search, Environments, and Skills are wired. Multi-project assistant panels provide isolated contextual chat, confirmed project opening, and project-scoped voice. Exact mutation retry, stale cache, provider contracts, multi-project realtime, the complete module-state matrix, Playwright coverage, and Docker runtime verification remain pending.
+Phase 4 remains in progress. The latest 2026-08-08 checkpoint passes lint, 73 tests, secret scanning, and an optimized build. Production state modules now live outside the former `mocks` namespace, Dashboard and Status distinguish unavailable provider states, and the shared resolver separates filtered-empty from true-empty data. Login is configuration-gated; generated password hashes use a dotenv-safe format across Next.js, Node, Docker, and VPS environments while legacy injected hashes remain verifiable. Demo credentials, automatic records, simulated realtime events, and hardcoded project fallbacks are removed. Persisted Projects, Vault, Search, Environments, and Skills are wired. Multi-project assistant panels provide isolated contextual chat, confirmed project opening, and project-scoped voice. Exact mutation retry, stale cache, remaining provider contracts, multi-project realtime, the complete module-state matrix, Playwright coverage, and Docker runtime verification remain pending.

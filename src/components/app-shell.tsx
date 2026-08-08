@@ -14,8 +14,8 @@ import { apiRequest, normalizeApiError, type ApiError } from "@/lib/api-client";
 import { notifyAuthChanged } from "@/lib/auth";
 import { moduleGroups, modules } from "@/lib/modules";
 import { startVoiceCapture, useVoiceState } from "@/lib/voice";
-import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
-import { useOriginalModuleStore } from "@/state/mocks/original-modules";
+import { useOperationalModuleStore } from "@/state/operational-modules";
+import { useOriginalModuleStore } from "@/state/original-modules";
 
 type Project = { id: string; name: string; environment: string };
 
@@ -47,6 +47,14 @@ function parseRecentProjects(value: string, fallback: string[]) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (pathname === "/login" || pathname === "/onboarding") {
+    return <div className="auth-shell"><NeuralField />{children}</div>;
+  }
+  return <WorkspaceShell>{children}</WorkspaceShell>;
+}
+
+function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useAuthenticatedSession();
@@ -165,10 +173,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     });
   };
-
-  if (pathname === "/login" || pathname === "/onboarding") {
-    return <div className="auth-shell"><NeuralField />{children}</div>;
-  }
 
   if (projectsLoading) {
     return <div className="session-check" role="status"><span className="spinner" />Loading workspace</div>;

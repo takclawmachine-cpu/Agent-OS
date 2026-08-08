@@ -14,9 +14,9 @@ import { VoiceCore } from "@/components/voice-core";
 import { apiRequest } from "@/lib/api-client";
 import type { ModuleDefinition } from "@/lib/modules";
 import { simulateVoiceError, startVoiceCapture, useVoiceState, VOICE_TRANSCRIPT_EVENT } from "@/lib/voice";
-import { useOperationalModuleStore } from "@/state/mocks/operational-modules";
-import { useOriginalModuleStore } from "@/state/mocks/original-modules";
-import { useToolModuleStore, type ToolModuleState } from "@/state/mocks/tool-modules";
+import { useOperationalModuleStore } from "@/state/operational-modules";
+import { useOriginalModuleStore } from "@/state/original-modules";
+import { useToolModuleStore, type ToolModuleState } from "@/state/tool-modules";
 
 type ToolStore = ReturnType<typeof useToolModuleStore>;
 

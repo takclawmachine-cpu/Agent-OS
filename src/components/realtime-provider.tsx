@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
+import { useAuthenticatedSession } from "@/components/auth-gate";
 import { useReliability } from "@/components/reliability-provider";
 import {
   getRealtimeStatus,
@@ -103,9 +104,10 @@ function startBackendTransport() {
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { online } = useReliability();
+  const authenticated = Boolean(useAuthenticatedSession());
 
   useEffect(() => {
-    if (!online) {
+    if (!online || !authenticated) {
       updateRealtimeStatus({ ...getRealtimeStatus(), mode: "offline", connected: false });
       return;
     }
@@ -113,7 +115,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (backendMode) return startBackendTransport();
 
     updateRealtimeStatus({ ...getRealtimeStatus(), mode: "offline", connected: false });
-  }, [online]);
+  }, [authenticated, online]);
 
   return children;
 }

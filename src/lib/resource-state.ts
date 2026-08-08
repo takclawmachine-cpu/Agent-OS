@@ -18,6 +18,7 @@ export type ResourceState<T> =
   | { status: "idle"; metadata: ResourceMetadata }
   | { status: "loading"; metadata: ResourceMetadata }
   | { status: "ready-empty"; data: T; metadata: ResourceMetadata }
+  | { status: "filtered-empty"; data: T; metadata: ResourceMetadata }
   | { status: "ready-populated"; data: T; metadata: ResourceMetadata }
   | { status: "unconfigured"; metadata: ResourceMetadata }
   | { status: "disconnected"; reason: "unreachable" | "error"; metadata: ResourceMetadata }
@@ -27,6 +28,7 @@ export type ResourceState<T> =
 type ResolveResourceStateInput<T> = {
   data?: T;
   error?: ResourceError;
+  filtered?: boolean;
   isEmpty: (data: T) => boolean;
   loading?: boolean;
   metadata: ResourceMetadata;
@@ -36,6 +38,7 @@ type ResolveResourceStateInput<T> = {
 export function resolveResourceState<T>({
   data,
   error,
+  filtered = false,
   isEmpty,
   loading = false,
   metadata,
@@ -49,6 +52,7 @@ export function resolveResourceState<T>({
   if (data !== undefined && staleAt) return { status: "stale", data, staleAt, metadata };
   if (loading) return { status: "loading", metadata };
   if (data === undefined) return { status: "idle", metadata };
+  if (filtered && isEmpty(data)) return { status: "filtered-empty", data, metadata };
   return isEmpty(data)
     ? { status: "ready-empty", data, metadata }
     : { status: "ready-populated", data, metadata };
