@@ -72,4 +72,4 @@ npm run security:secrets
 
 `npm install` configures the repository-managed pre-commit hook, which rejects high-confidence credentials in staged additions. GitHub Actions independently scans full Git history with Gitleaks and audits dependencies on pull requests and `main`. Trusted pull requests also receive a Vercel preview after the repository secrets in `.github/BRANCH_PROTECTION.md` are configured.
 
-See `memory_bank/docs/hermes-local.md` for the Hermes connection contract and `memory_bank/index.md` for the indexed task workflow.
+See `memory_bank/docs/hermes-local.md` for the Hermes connection contract. Every task starts with `memory_bank/index.md`, followed by `memory_bank/architecture/current-context.md`; regenerate indexes after note changes with `npm run memory:index`.

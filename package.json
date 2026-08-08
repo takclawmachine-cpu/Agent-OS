@@ -13,6 +13,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "memory:index": "node scripts/build-memory-index.mjs",
+    "memory:check": "node scripts/build-memory-index.mjs --check",
     "smoke": "node scripts/smoke.mjs",
     "smoke:hermes": "node scripts/smoke.mjs --hermes",
     "security:hooks": "node scripts/install-git-hooks.mjs",

@@ -19,15 +19,15 @@ Goal: A module must never present demo, cached, or fallback content as live back
   - [x] 2.4 Remove demo To-Dos, assignments, and Terminal output from tool client defaults
   - [x] 2.5 Remove operational demo agents, plans, repositories, chat, mail, usage, and notifications from fresh SQLite seeding
   - [x] 2.6 Add an idempotent migration that removes only known demo records from existing databases
-  - [x] 2.7 Preserve required system defaults: local user/project, preferences, caps, skill catalog, preview config, and backup schedule
-  - [ ] 2.8 Replace static project, Vault, Search, Environment, and Skill UI datasets with backend responses
+  - [x] 2.7 Remove generated defaults; create only the configured owner and explicitly named blank project
+  - [x] 2.8 Replace static project, Vault, Search, Environment, and Skill UI datasets with backend responses
   - [x] 2.9 Superseded by the zero-demo policy: no demo population or seed/reset command exists
 
 - [ ] **3. Error Management Architecture**
   - [x] 3.1 Add a typed `ApiError` carrying status, code, retryability, source, and a safe user message
   - [x] 3.2 Add centralized timeout, abort, JSON-parse, and network-failure handling to the API client
   - [x] 3.3 Stop swallowing hydration and persistence failures in all three state stores
-  - [ ] 3.4 Add optimistic mutation rollback, retry, and stale-data marking
+  - [ ] 3.4 Add optimistic mutation rollback, retry, and stale-data marking (guarded rollback complete; exact retry and stale marking pending)
   - [x] 3.5 Handle `401`, `403`, `409`, `413`, `429`, provider `503`, and unexpected `5xx` distinctly
   - [x] 3.6 Standardize field errors, card/module errors, route errors, and global errors with accessible status text
   - [ ] 3.7 Add retry actions that rerun the failed operation rather than only clearing UI flags
@@ -70,13 +70,13 @@ Goal: A module must never present demo, cached, or fallback content as live back
 
 - Completed task groups: 1
 - Pending task groups: 5
-- Completed subtasks: 28
-- Pending subtasks: 22
+- Completed subtasks: 29
+- Pending subtasks: 21
 - Modules requiring state-matrix verification: 27
 
 ## Seed Classification
 
-- System defaults: local user and project, preferences, usage cap, digest configuration, preview configuration, skill catalog, and backup schedule.
+- System defaults: schema and neutral in-memory UI defaults only. Owner and project records require configured login and explicit onboarding.
 - User data: all agents, plans, repositories, conversations, mail logs, usage, notifications, To-Dos, assignments, and terminal history created after initialization.
 - Test fixtures: records created explicitly inside Vitest setup and removed with the test database.
 - Demo data: no operational demo records are created by normal startup; legacy rows are removed only when their IDs and original content still match.
@@ -87,4 +87,4 @@ Opening an existing database runs the idempotent legacy cleanup during initializ
 
 ## Release Decision
 
-Phase 4 remains in progress. The 2026-08-08 security checkpoint passes lint, 54 tests, and an optimized build. Login is blocked until core owner settings and one AI option are configured; fixed demo credentials, automatic data seeds, simulated realtime events, and hardcoded project fallbacks are removed. Smoke, Docker, provider contracts, rollback, real-data conversion, and the complete module-state matrix remain pending.
+Phase 4 remains in progress. The latest 2026-08-08 checkpoint passes lint, 64 tests, secret scanning, and an optimized build. Login is configuration-gated; demo credentials, automatic records, simulated realtime events, and hardcoded project fallbacks are removed. Persisted Projects, Vault, Search, Environments, and Skills are wired. Multi-project assistant panels provide isolated contextual chat, confirmed project opening, and project-scoped voice. Exact mutation retry, stale cache, provider contracts, multi-project realtime, the complete module-state matrix, Playwright coverage, and Docker runtime verification remain pending.

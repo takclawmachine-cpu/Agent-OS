@@ -26,6 +26,7 @@ Agent OS previously allowed a fixed demo login, seeded application records, simu
 
 ## Validation
 
+- At this secure-setup checkpoint:
 - ESLint passes without warnings.
 - All 54 Vitest tests pass.
 - The optimized Next.js build succeeds for all application and API routes.

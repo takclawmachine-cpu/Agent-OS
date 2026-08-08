@@ -2,8 +2,8 @@
 id: overview
 type: architecture
 created: 2026-08-07
-updated: 2026-08-07
-phase: 2
+updated: 2026-08-08
+phase: 4
 related_tasks: ["1.2", "1", "2", "3", "4", "5"]
 status: active
 tags: [vision, modules, architecture]
@@ -62,17 +62,20 @@ Agent OS is a lightweight, voice-first operating environment for AI-assisted pro
 26. Generate Report
 27. Preview App
 
-The Project Switcher is a shell-level global control rather than a module. It re-scopes every module to the active project.
+The Project Switcher is a shell-level global control rather than a module. It re-scopes every full-workspace module to the active project. Up to four project assistant panels may remain open independently for contextual chat, voice, and status without silently changing that full-workspace selection.
 
 ## Phase Boundaries
 
 - SQLite is authoritative for project entities; browser storage is an optimistic/offline cache.
+- Fresh databases are schema-only. Secure environment configuration gates login, and onboarding creates the first blank project.
 - Next.js route handlers own internal HTTP APIs and server-only provider credentials.
 - A companion Node process owns multiplexed WebSocket delivery and persisted cursor replay; clients fall back to HTTP polling.
 - The scheduler owns backup and digest jobs. Security-sensitive terminal, webhook, role, cap, export, recovery, and deletion behavior remains in server services.
-- Phase 2 is complete after its optimized local production staging target passed standard and Hermes smoke contracts. A remote deployment remains a Phase 3 infrastructure validation concern.
+- Project assistant context is assembled server-side from bounded, project-scoped records. Project-open commands require confirmation, and voice events carry project identity.
+- Phases 1-3 are complete. Phase 4 is completing real-data, failure-state, provider-state, retry/stale-cache, multi-project realtime, and release evidence.
 
 ## Source References
 
 - [Product Requirements Document](../references/Agent-OS-PRD.md)
 - [Project Start Prompt](../references/Agent-OS-Start-Prompt.md)
+- [Current task context](current-context.md)

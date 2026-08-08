@@ -2,7 +2,7 @@
 id: 0002-memory-bank-foundation
 type: decision
 created: 2026-08-07
-updated: 2026-08-07
+updated: 2026-08-08
 phase: 1
 related_tasks: ["1.1", "1.2", "1.3", "1.4", "1.5"]
 status: active
@@ -18,9 +18,11 @@ The PRD requires project memory to exist before feature work. The Project Start 
 ## Decision
 
 - Use `memory_bank/index.md` as the first retrieval surface for every task.
+- Use `memory_bank/architecture/current-context.md` as the concise second retrieval surface before opening detailed notes.
 - Store architecture references, sequential decisions, prompts, meetings, phase trackers, and generated versions in their prescribed folders.
 - Give every architecture, decision, meeting, and prompt note the required frontmatter.
 - Rebuild the master index and affected per-folder index whenever an indexed note changes.
+- Generate indexes mechanically with `npm run memory:index`; never hand-edit generated index rows.
 - Record one focused decision entry and update the appropriate phase tracker after every completed task.
 - Keep the Obsidian Vault mock linked to this real workspace folder.
 
