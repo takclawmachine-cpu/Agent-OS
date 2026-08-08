@@ -18,6 +18,7 @@ Agent OS previously allowed a fixed demo login, seeded application records, simu
 ## Decision
 
 - Block login unless owner identity, a scrypt password hash, a strong session secret, storage paths, and at least one AI option are configured server-side.
+- Serialize newly generated scrypt hashes with colon delimiters so the same value survives Next.js dotenv expansion, Node loading, Docker `--env-file`, and direct VPS injection. Continue accepting legacy dollar-delimited hashes only when they arrive intact through external environment injection.
 - Use the HttpOnly session cookie as the only authentication authority.
 - Initialize databases with schema only and create the owner after successful configured login.
 - Create the first blank workspace through authenticated onboarding.
@@ -26,10 +27,7 @@ Agent OS previously allowed a fixed demo login, seeded application records, simu
 
 ## Validation
 
-- At this secure-setup checkpoint:
-- ESLint passes without warnings.
-- All 54 Vitest tests pass.
-- The optimized Next.js build succeeds for all application and API routes.
+At the original secure-setup checkpoint, ESLint, all 54 then-current Vitest tests, and the optimized build passed. Later regression coverage verifies parser-neutral generated hashes and legacy verification compatibility.
 
 ## Consequences
 

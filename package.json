@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "node scripts/setup-env.mjs",
+    "setup:migrate": "node scripts/setup-env.mjs --migrate",
     "config:check": "node scripts/setup-env.mjs --check",
     "dev": "next dev",
     "dev:full": "concurrently --kill-others --names web,realtime,scheduler \"npm:dev -- --hostname 127.0.0.1 --port 3000\" \"npm:realtime\" \"npm:scheduler\"",

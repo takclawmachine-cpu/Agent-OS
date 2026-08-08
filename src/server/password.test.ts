@@ -7,10 +7,18 @@ describe("owner passwords", () => {
     const password = "correct horse battery staple";
     const encoded = await hashPassword(password);
 
-    expect(encoded).toMatch(/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/);
+    expect(encoded).toMatch(/^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/);
+    expect(encoded).not.toContain("$");
     expect(encoded).not.toContain(password);
     await expect(verifyPassword(password, encoded)).resolves.toBe(true);
     await expect(verifyPassword("incorrect password", encoded)).resolves.toBe(false);
+  });
+
+  it("continues to verify legacy dollar-delimited hashes", async () => {
+    const password = "correct horse battery staple";
+    const encoded = await hashPassword(password);
+
+    await expect(verifyPassword(password, encoded.replaceAll(":", "$"))).resolves.toBe(true);
   });
 
   it("rejects weak passwords and malformed hashes", async () => {

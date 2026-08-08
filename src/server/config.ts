@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { isPasswordHash } from "../../server/password-format.mjs";
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 export type ConfigurationIssue = {
@@ -22,7 +24,6 @@ export type ConfigurationStatus =
   | { ready: true; configuration: AppConfiguration; issues: [] }
   | { ready: false; configuration: null; issues: ConfigurationIssue[] };
 
-const PASSWORD_HASH_PATTERN = /^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function value(environment: Environment, name: string) {
@@ -50,7 +51,7 @@ export function readConfiguration(environment: Environment = process.env): Confi
 
   if (ownerName.length < 2) issues.push({ field: "AGENT_OS_OWNER_NAME", message: "Enter the owner's name." });
   if (!EMAIL_PATTERN.test(ownerEmail)) issues.push({ field: "AGENT_OS_OWNER_EMAIL", message: "Enter a valid owner email." });
-  if (!PASSWORD_HASH_PATTERN.test(passwordHash)) issues.push({ field: "AGENT_OS_OWNER_PASSWORD_HASH", message: "Generate a secure owner password hash." });
+  if (!isPasswordHash(passwordHash)) issues.push({ field: "AGENT_OS_OWNER_PASSWORD_HASH", message: "Generate a secure owner password hash." });
   if (sessionSecret.length < 32) issues.push({ field: "AGENT_OS_SESSION_SECRET", message: "Generate a session secret with at least 32 characters." });
   if (!databasePath) issues.push({ field: "AGENT_OS_DATABASE_PATH", message: "Choose a database location." });
   if (!backupPath) issues.push({ field: "AGENT_OS_BACKUP_PATH", message: "Choose a backup location." });

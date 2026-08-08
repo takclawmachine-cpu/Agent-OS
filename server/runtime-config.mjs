@@ -1,4 +1,5 @@
-const passwordHashPattern = /^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/i;
+import { isPasswordHash } from "./password-format.mjs";
+
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function configurationIssues(environment = process.env) {
@@ -6,7 +7,7 @@ export function configurationIssues(environment = process.env) {
   const issues = [];
   if (value("AGENT_OS_OWNER_NAME").length < 2) issues.push("AGENT_OS_OWNER_NAME");
   if (!emailPattern.test(value("AGENT_OS_OWNER_EMAIL"))) issues.push("AGENT_OS_OWNER_EMAIL");
-  if (!passwordHashPattern.test(value("AGENT_OS_OWNER_PASSWORD_HASH"))) issues.push("AGENT_OS_OWNER_PASSWORD_HASH");
+  if (!isPasswordHash(value("AGENT_OS_OWNER_PASSWORD_HASH"))) issues.push("AGENT_OS_OWNER_PASSWORD_HASH");
   if (value("AGENT_OS_SESSION_SECRET").length < 32) issues.push("AGENT_OS_SESSION_SECRET");
   if (!value("AGENT_OS_DATABASE_PATH")) issues.push("AGENT_OS_DATABASE_PATH");
   if (!value("AGENT_OS_BACKUP_PATH")) issues.push("AGENT_OS_BACKUP_PATH");

@@ -5,7 +5,7 @@ import { publicConfigurationStatus, readConfiguration, requireConfiguration } fr
 const validEnvironment = {
   AGENT_OS_OWNER_NAME: "Project Owner",
   AGENT_OS_OWNER_EMAIL: "owner@example.com",
-  AGENT_OS_OWNER_PASSWORD_HASH: `scrypt$${"a".repeat(32)}$${"b".repeat(128)}`,
+  AGENT_OS_OWNER_PASSWORD_HASH: `scrypt:${"a".repeat(32)}:${"b".repeat(128)}`,
   AGENT_OS_SESSION_SECRET: "a-secure-session-secret-with-more-than-32-characters",
   AGENT_OS_DATABASE_PATH: "./data/agent-os.db",
   AGENT_OS_BACKUP_PATH: "./backups",
@@ -43,5 +43,12 @@ describe("server configuration", () => {
 
     const hermesOnly = { ...validEnvironment, OPENAI_API_KEY: "", HERMES_CLI_ENABLED: "true" };
     expect(readConfiguration(hermesOnly).ready).toBe(true);
+  });
+
+  it("accepts legacy dollar-delimited password hashes", () => {
+    const legacy = { ...validEnvironment, AGENT_OS_OWNER_PASSWORD_HASH: validEnvironment.AGENT_OS_OWNER_PASSWORD_HASH.replaceAll(":", "$") };
+
+    expect(readConfiguration(legacy).ready).toBe(true);
+    expect(readConfiguration({ ...validEnvironment, AGENT_OS_OWNER_PASSWORD_HASH: validEnvironment.AGENT_OS_OWNER_PASSWORD_HASH.replace(":", "$") }).ready).toBe(false);
   });
 });

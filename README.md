@@ -15,6 +15,8 @@ Open [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login), sign in with th
 
 The setup command securely generates the password hash and session secret, then asks for one AI option. Use `npm run setup -- --force` to replace an existing local configuration. Optional GitHub, SMTP, voice, and webhook settings can be added later in `.env.local`; missing services appear as unavailable instead of blocking unrelated modules.
 
+Installations created before the dotenv-safe password format can run `npm run setup:migrate` once. This preserves the owner password, rotates the session secret, and requires a fresh login.
+
 ## Docker
 
 Build the image without secrets, then inject settings only when the container starts:

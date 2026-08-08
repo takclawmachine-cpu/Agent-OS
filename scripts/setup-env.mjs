@@ -4,14 +4,45 @@ import readline from "node:readline";
 import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
 
+import { formatPasswordHash, parsePasswordHash } from "../server/password-format.mjs";
 import { configurationIssues } from "../server/runtime-config.mjs";
 
 const target = ".env.local";
 const scrypt = promisify(scryptCallback);
 const force = process.argv.includes("--force");
+const migrate = process.argv.includes("--migrate");
+
+if (migrate) {
+  if (!fs.existsSync(target)) {
+    console.error("No .env.local file exists. Run npm run setup instead.");
+    process.exit(1);
+  }
+  const current = fs.readFileSync(target, "utf8");
+  const legacyHash = current.match(/^AGENT_OS_OWNER_PASSWORD_HASH=(scrypt\$[^\r\n]+)$/m)?.[1];
+  const parsedHash = legacyHash ? parsePasswordHash(legacyHash) : null;
+  if (!parsedHash) {
+    console.error("No legacy password hash was found. Run npm run config:check.");
+    process.exit(1);
+  }
+  const migratedHash = formatPasswordHash(parsedHash.saltHex, parsedHash.hashHex);
+  const sessionSecret = randomBytes(48).toString("base64url");
+  const migrated = current
+    .replace(/^AGENT_OS_OWNER_PASSWORD_HASH=.*$/m, `AGENT_OS_OWNER_PASSWORD_HASH=${migratedHash}`)
+    .replace(/^AGENT_OS_SESSION_SECRET=.*$/m, `AGENT_OS_SESSION_SECRET=${sessionSecret}`);
+  fs.writeFileSync(target, migrated, { encoding: "utf8", mode: 0o600, flag: "w" });
+  console.log("Local setup migrated. Existing sessions were invalidated; run npm run config:check.");
+  process.exit(0);
+}
 
 if (process.argv.includes("--check")) {
-  if (fs.existsSync(target)) process.loadEnvFile(target);
+  if (fs.existsSync(target)) {
+    const localEnvironment = fs.readFileSync(target, "utf8");
+    if (/^AGENT_OS_OWNER_PASSWORD_HASH=scrypt\$/m.test(localEnvironment)) {
+      console.error("Setup incomplete: AGENT_OS_OWNER_PASSWORD_HASH uses the legacy local-file format. Run npm run setup -- --force.");
+      process.exit(1);
+    }
+    process.loadEnvFile(target);
+  }
   const issues = configurationIssues();
   if (issues.length) {
     console.error(`Setup incomplete: ${issues.join(", ")}`);
@@ -74,7 +105,7 @@ if (providerName && !providerKey.trim()) throw new Error(`${providerName} cannot
 
 const salt = randomBytes(16);
 const derived = await scrypt(password, salt, 64);
-const passwordHash = `scrypt$${salt.toString("hex")}$${Buffer.from(derived).toString("hex")}`;
+const passwordHash = formatPasswordHash(salt.toString("hex"), Buffer.from(derived).toString("hex"));
 const sessionSecret = randomBytes(48).toString("base64url");
 const keys = { OPENAI_API_KEY: "", OPENROUTER_API_KEY: "", GROQ_API_KEY: "", XAI_API_KEY: "" };
 if (providerName) keys[providerName] = providerKey;

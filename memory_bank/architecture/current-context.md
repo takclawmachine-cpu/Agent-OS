@@ -65,7 +65,7 @@ Agent OS is a secure, local-first AI project command center built with Next.js 1
 
 - Published checkpoints: `f7a3ed7` (state reliability) and `ed67fba` (multi-project assistant panels).
 - ESLint passes.
-- Vitest: 64 tests pass across 16 files.
+- Vitest: 69 tests pass across 16 files.
 - Optimized Next.js production build passes after clearing stale generated `.next` output when OneDrive locks it.
 - Staged secret scanning passes.
 - Docker runtime execution is not locally verified because Docker is unavailable in the current environment.
