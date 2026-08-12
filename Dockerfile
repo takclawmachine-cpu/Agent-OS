@@ -23,6 +23,11 @@ COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/server ./server
 COPY --from=builder --chown=node:node /app/scripts/start-production.mjs ./scripts/start-production.mjs
+COPY --from=builder --chown=node:node /app/node_modules/ws ./node_modules/ws
+COPY --from=builder --chown=node:node /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder --chown=node:node /app/node_modules/bindings ./node_modules/bindings
+COPY --from=builder --chown=node:node /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
+COPY --from=builder --chown=node:node /app/node_modules/nodemailer ./node_modules/nodemailer
 RUN mkdir -p /app/data /app/backups && chown -R node:node /app/data /app/backups
 USER node
 EXPOSE 3000 8787
