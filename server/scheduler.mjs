@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { applyLogRetention, pruneBackupFiles, runRecoveryDrills } from "./maintenance.mjs";
 import { assertConfigured } from "./runtime-config.mjs";
+import { ensureSchema } from "./db-schema.mjs";
 
 const environmentPath = path.join(process.cwd(), ".env.local");
 if (fs.existsSync(environmentPath)) process.loadEnvFile?.(environmentPath);
@@ -14,40 +15,11 @@ const databasePath = process.env.AGENT_OS_DATABASE_PATH ?? path.join(process.cwd
 const backupDirectory = process.env.AGENT_OS_BACKUP_PATH ?? path.join(process.cwd(), "backups");
 const runtimeEnvironment = process.env.AGENT_OS_ENVIRONMENT ?? "Local";
 fs.mkdirSync(backupDirectory, { recursive: true });
+// Ensure full schema exists even if this process starts before the web
+// process has served its first request (which normally initializes tables).
+ensureSchema(databasePath);
 const database = new Database(databasePath);
 database.pragma("foreign_keys = ON");
-// Ensure core schema exists even if this process starts before the web
-// process has served its first request (which normally initializes tables).
-database.exec(`
-PRAGMA journal_mode = WAL;
-CREATE TABLE IF NOT EXISTS users (
-  id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','editor','viewer','guest')), created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS projects (
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, environment TEXT NOT NULL DEFAULT 'Local', version INTEGER NOT NULL DEFAULT 1,
-  deleted_at TEXT, purge_after TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS cron_jobs (
-  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, schedule TEXT NOT NULL,
-  next_run TEXT, status TEXT NOT NULL, job_type TEXT NOT NULL DEFAULT 'general'
-);
-CREATE TABLE IF NOT EXISTS backup_records (
-  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, location TEXT NOT NULL, size_bytes INTEGER NOT NULL,
-  status TEXT NOT NULL, checksum TEXT NOT NULL, created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id TEXT PRIMARY KEY, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, actor TEXT NOT NULL, action TEXT NOT NULL,
-  entity_type TEXT NOT NULL, entity_id TEXT, detail TEXT, created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS digest_configs (
-  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, cadence TEXT NOT NULL, modules_json TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS reports (
-  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, request_json TEXT NOT NULL, result_json TEXT NOT NULL,
-  generated_by TEXT NOT NULL, created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS backup_drills (id TEXT PRIMARY KEY, backup_id TEXT REFERENCES backup_records(id) ON DELETE SET NULL, project_id TEXT REFERENCES projects(id) ON DELETE SET NULL, outcome TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL);
-`);
 
 async function runBackupJobs() {
   const jobs = database.prepare("SELECT cron_jobs.project_id FROM cron_jobs JOIN projects ON projects.id = cron_jobs.project_id WHERE cron_jobs.job_type = 'backup' AND cron_jobs.status = 'active' AND lower(projects.environment) = lower(?)").all(runtimeEnvironment);
